@@ -9,15 +9,6 @@ export type ConceptTag = {
   reason?: string;
 };
 
-export type Highlight = {
-  startLine: number;
-  startColumn: number;
-  endLine: number;
-  endColumn: number;
-  kind: string;
-  label: string;
-};
-
 export type Suggestion = {
   type?: string;
   message?: string;
@@ -28,7 +19,6 @@ export type AnalysisResponse = {
   syntax_tags: SyntaxTag[];
   concept_tags: ConceptTag[];
   metrics: Record<string, number>;
-  highlights: Highlight[];
   suggestions: Suggestion[];
   error?: string | null;
 };

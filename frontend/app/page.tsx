@@ -498,7 +498,7 @@ print(average)`);
             <CodeEditor
               code={code}
               setCode={setCode}
-              highlights={result?.highlights || []}
+              
             />
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1042,7 +1042,7 @@ print(average)`);
               <CodeEditor
                 code={targetCode}
                 setCode={setTargetCode}
-                highlights={[]}
+                
               />
             </div>
 

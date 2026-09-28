@@ -17,6 +17,5 @@ class AnalyzeResponse(BaseModel):
     syntax_tags: List[SyntaxTagItem]
     concept_tags: List[dict]
     metrics: Dict[str, int]
-    highlights: List[dict]
     suggestions: List[dict]
     error: Optional[str] = None
