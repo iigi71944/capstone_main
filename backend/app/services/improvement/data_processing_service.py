@@ -7,7 +7,7 @@ class DataProcessingTransformer(ast.NodeTransformer):
 
     목표:
     - 실행 결과가 달라질 위험이 낮은 단순 데이터 처리 패턴만 변환합니다.
-    - 간결성 중심형에서 집계, 필터링, 변환, 정렬 구조를 짧게 통합합니다.
+    - 집계, 필터링, 변환, 정렬 패턴을 간결한 데이터 처리 구조로 변환합니다.
 
     지원:
     1. total = 0 + for item in items: total += item -> total = sum(items)

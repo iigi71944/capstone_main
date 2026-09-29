@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CodeEditor from "../components/editor/CodeEditor";
 import CodeViewer from "../components/editor/CodeViewer";
-import { analyzeCode, applyCodingStyle, improveCode } from "../lib/api";
+import { analyzeCode, applyCodingStyle } from "../lib/api";
 import {
   AnalysisResponse,
   CodingStyle,
@@ -17,7 +17,6 @@ import {
   syntaxTagDocs,
 } from "./tags";
 
-type ImproveMode = "beginner" | "concise" | "structured" | null;
 type MenuType =
   | "analyze"
   | "login"
@@ -74,12 +73,6 @@ export default function HomePage() {
 
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [selectedMode, setSelectedMode] = useState<ImproveMode>(null);
-  const [improvementLoading, setImprovementLoading] = useState(false);
-  const [originalCode, setOriginalCode] = useState("");
-  const [improvedCode, setImprovedCode] = useState("");
-  const [improvementSummary, setImprovementSummary] = useState("");
 
   const [syntaxSearch, setSyntaxSearch] = useState("");
   const [conceptSearch, setConceptSearch] = useState("");
@@ -220,30 +213,6 @@ print(average)`);
     }
   };
 
-  const handleImprove = async (mode: ImproveMode) => {
-    if (!mode) return;
-
-    try {
-      setImprovementLoading(true);
-      setSelectedMode(mode);
-
-      const data = await improveCode(code, mode);
-
-      if (!data.success) {
-        alert(data.error || "코드 개선에 실패했습니다.");
-        return;
-      }
-
-      setOriginalCode(data.original_code);
-      setImprovedCode(data.improved_code);
-      setImprovementSummary(data.summary || "");
-    } catch (error) {
-      console.error("개선 오류:", error);
-      alert("코드 개선 중 오류가 발생했습니다.");
-    } finally {
-      setImprovementLoading(false);
-    }
-  };
 
   const handleCopyText = async (text: string, message: string) => {
     try {
@@ -641,96 +610,6 @@ print(average)`);
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-slate-900">
-                          개선 제안
-                        </h3>
-
-                        <button
-                          onClick={() => handleImprove("beginner")}
-                          disabled={improvementLoading}
-                          className={`px-3 py-1 rounded-lg text-sm border transition ${
-                            selectedMode === "beginner"
-                              ? "bg-green-200 border-green-400 text-green-900"
-                              : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          학습 친화형
-                        </button>
-
-                        <button
-                          onClick={() => handleImprove("concise")}
-                          disabled={improvementLoading}
-                          className={`px-3 py-1 rounded-lg text-sm border transition ${
-                            selectedMode === "concise"
-                              ? "bg-blue-200 border-blue-400 text-blue-900"
-                              : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          간결성 중심형
-                        </button>
-
-                        <button
-                          onClick={() => handleImprove("structured")}
-                          disabled={improvementLoading}
-                          className={`px-3 py-1 rounded-lg text-sm border transition ${
-                            selectedMode === "structured"
-                              ? "bg-purple-200 border-purple-400 text-purple-900"
-                              : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          구조 중심형
-                        </button>
-                      </div>
-
-                      {improvementLoading && (
-                        <p className="text-sm text-slate-600">
-                          개선 코드를 생성하는 중입니다...
-                        </p>
-                      )}
-
-                      {selectedMode && !improvementLoading && (
-                        <div className="space-y-4">
-                          <p className="text-sm text-slate-700">
-                            {improvementSummary ||
-                              "선택한 개선 모드가 적용된 전체 코드입니다."}
-                          </p>
-
-                          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
-                            <CodeViewer
-                              title="변경 전 코드"
-                              code={originalCode || code}
-                              readOnly={true}
-                            />
-
-                            <div className="min-w-0">
-                              <CodeViewer
-                                title="개선된 전체 코드"
-                                code={improvedCode}
-                                readOnly={false}
-                                onChange={setImprovedCode}
-                              />
-
-                              <div className="mt-3 flex justify-end">
-                                <button
-                                  onClick={() =>
-                                    handleCopyText(
-                                      improvedCode,
-                                      "개선된 코드가 복사되었습니다."
-                                    )
-                                  }
-                                  className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition"
-                                >
-                                  개선 코드 복사
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </>
                 )}

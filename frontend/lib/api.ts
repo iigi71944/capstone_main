@@ -3,7 +3,6 @@ import {
   CodingStyle,
   StyleApplyResponse,
 } from "../types/analysis";
-import { ImproveCodeResponse } from "../types/improveCode";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -25,30 +24,6 @@ export async function analyzeCode(code: string): Promise<AnalysisResponse> {
   }
 
   const data: AnalysisResponse = await response.json();
-  return data;
-}
-
-export async function improveCode(
-  code: string,
-  mode: "beginner" | "concise" | "structured"
-): Promise<ImproveCodeResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/improve-code`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      language: "python",
-      code,
-      mode,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error("코드 개선 요청에 실패했습니다.");
-  }
-
-  const data: ImproveCodeResponse = await response.json();
   return data;
 }
 

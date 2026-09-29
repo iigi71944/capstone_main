@@ -3,7 +3,7 @@ import ast
 
 class StructuredTransformer(ast.NodeTransformer):
     """
-    구조 중심형 변환기.
+    조건문 구조 단순화 변환기.
 
     목표:
     - 실행 결과가 달라질 가능성이 높은 변환은 하지 않습니다.

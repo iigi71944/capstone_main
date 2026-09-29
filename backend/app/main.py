@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.analyze import router as analyze_router
-from app.api.routes.improve_code import router as improve_router
 from app.api.routes.style_apply import router as style_apply_router
 
 app = FastAPI(
@@ -26,5 +25,4 @@ def read_root():
 
 
 app.include_router(analyze_router, prefix="/api/v1")
-app.include_router(improve_router, prefix="/api/v1")
 app.include_router(style_apply_router, prefix="/api/v1")

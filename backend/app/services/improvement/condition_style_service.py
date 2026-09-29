@@ -5,7 +5,7 @@ def transform_condition_style(code: str) -> str:
     """
     조건/반환 중심 스타일 변환기.
 
-    현재는 구조 중심 변환기와 연결합니다.
+    조건문과 반환문의 구조를 단순화하는 변환 로직을 사용합니다.
 
     지원:
     - if return True/False -> return condition
