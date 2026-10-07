@@ -31,6 +31,25 @@ class FinalAnalysis(BaseModel):
     metrics: Dict[str, int] = Field(default_factory=dict)
 
 
+class ExecutionResult(BaseModel):
+    success: bool
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: Optional[int] = None
+    timed_out: bool = False
+    blocked: bool = False
+    block_reason: Optional[str] = None
+
+
+class ExecutionVerification(BaseModel):
+    source: str
+    status: str
+    equivalent: Optional[bool] = None
+    original: ExecutionResult
+    transformed: ExecutionResult
+    message: str
+
+
 class StyleApplyResponse(BaseModel):
     success: bool
     original_code: str
@@ -39,6 +58,8 @@ class StyleApplyResponse(BaseModel):
     final_analysis: Optional[FinalAnalysis] = None
     missing_syntax_tags: List[StyleTagItem] = Field(default_factory=list)
     missing_concept_tags: List[StyleTagItem] = Field(default_factory=list)
+
+    execution_verification: Optional[ExecutionVerification] = None
 
     summary: Optional[str] = None
     applied_rules: List[str] = Field(default_factory=list)

@@ -7,6 +7,7 @@ import type {
   AnalysisResponse,
   CodingStyle,
   ConceptTag,
+  ExecutionResult,
   StyleApplyResponse,
   SyntaxTag,
 } from "../../types/analysis";
@@ -40,6 +41,82 @@ interface StyleApplySectionProps {
   setEditableTransformedCode: (value: string) => void;
 }
 
+function ExecutionOutput({
+  result,
+  emptyMessage,
+}: {
+  result?: ExecutionResult;
+  emptyMessage: string;
+}) {
+  if (!result) {
+    return (
+      <p className="text-sm leading-relaxed text-slate-400">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  if (result.blocked) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-amber-700">
+          자동 실행이 제한되었습니다.
+        </p>
+
+        <p className="text-sm leading-relaxed text-slate-600">
+          {result.block_reason ?? "현재 자동 실행 검증 대상이 아닙니다."}
+        </p>
+      </div>
+    );
+  }
+
+  if (result.timed_out) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-amber-700">
+          실행 시간이 초과되었습니다.
+        </p>
+
+        {result.stdout && (
+          <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-slate-700">
+            {result.stdout}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  if (!result.success) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-red-700">
+          코드가 정상적으로 종료되지 않았습니다.
+        </p>
+
+        {result.stderr && (
+          <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-red-700">
+            {result.stderr}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  if (!result.stdout) {
+    return (
+      <p className="text-sm leading-relaxed text-slate-500">
+        정상적으로 실행되었으며 출력된 내용은 없습니다.
+      </p>
+    );
+  }
+
+  return (
+    <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-slate-800">
+      {result.stdout}
+    </pre>
+  );
+}
+
 export default function StyleApplySection({
   selectedStyleId,
   setSelectedStyleId,
@@ -71,6 +148,9 @@ export default function StyleApplySection({
     selectedStyle?.concept_tags.filter(
       (item) => !missingConceptNames.has(item.tag)
     ) ?? [];
+
+  const executionVerification =
+    styleApplyResult?.applyResponse.execution_verification;
 
   return (
     <div className="space-y-6">
@@ -302,9 +382,10 @@ export default function StyleApplySection({
                   </div>
 
                   <div className="min-h-[110px] px-4 py-4">
-                    <p className="text-sm leading-relaxed text-slate-400">
-                      변환 전 코드의 실행 결과가 표시됩니다.
-                    </p>
+                    <ExecutionOutput
+                      result={executionVerification?.original}
+                      emptyMessage="변환 전 코드의 실행 결과를 확인할 수 없습니다."
+                    />
                   </div>
                 </div>
               </div>
@@ -345,13 +426,52 @@ export default function StyleApplySection({
                   </div>
 
                   <div className="min-h-[110px] px-4 py-4">
-                    <p className="text-sm leading-relaxed text-slate-400">
-                      스타일 적용 후 코드의 실행 결과가 표시됩니다.
-                    </p>
+                    <ExecutionOutput
+                      result={executionVerification?.transformed}
+                      emptyMessage="스타일 적용 후 코드의 실행 결과를 확인할 수 없습니다."
+                    />
                   </div>
                 </div>
               </div>
             </div>
+
+            {executionVerification && (
+              <div
+                className={`mb-6 rounded-xl border p-4 ${
+                  executionVerification.status === "equivalent"
+                    ? "border-green-200 bg-green-50"
+                    : executionVerification.status === "different"
+                    ? "border-red-200 bg-red-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
+              >
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <p
+                    className={`text-sm font-semibold ${
+                      executionVerification.status === "equivalent"
+                        ? "text-green-800"
+                        : executionVerification.status === "different"
+                        ? "text-red-800"
+                        : "text-amber-800"
+                    }`}
+                  >
+                    {executionVerification.status === "equivalent"
+                      ? "✓ 변환 전·후 실행 결과 동일"
+                      : executionVerification.status === "different"
+                      ? "실행 결과 불일치 · 원본 코드 유지"
+                      : "△ 실행 결과 자동 검증 불가"}
+                  </p>
+
+                  <span className="text-xs font-medium text-slate-500">
+                    검증 방식: 실제 Python 실행
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {executionVerification.message}
+                </p>
+              </div>
+            )}
 
             <div className="border-t border-slate-200 pt-6">
               <div className="mb-4">

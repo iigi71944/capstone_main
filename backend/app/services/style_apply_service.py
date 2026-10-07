@@ -5,6 +5,9 @@ from app.services.style_diff_service import (
     compare_style_with_target_code,
 )
 from app.services.style_transform_plan_service import build_transform_plan
+from app.services.execution_validation_service import (
+    verify_execution_equivalence,
+)
 
 from app.services.improvement.iteration_style_service import (
     transform_to_direct_iteration_style,
@@ -153,8 +156,13 @@ def apply_coding_style(code: str, style: dict):
     - 저장된 코딩 스타일의 태그를 목표 상태로 삼습니다.
     - 대상 코드를 '더 좋은 코드'로 바꾸는 것이 아니라,
       저장된 스타일의 문법/개념 태그에 가까워지도록 구조와 형태를 변경합니다.
-    - 실행 결과가 달라질 위험이 있는 변환은 수행하지 않습니다.
-    - 변환 완료 후 최종 코드를 다시 분석하여 실제 최종 태그 상태를 반환합니다.
+    - 변환 후보가 생성되면 가능한 경우 원본 코드와 변환 코드의
+      실제 실행 출력을 비교합니다.
+    - 실제 실행 출력이 다르면 변환을 취소하고 원본 코드를 유지합니다.
+    - 실행 검증이 불가능한 경우에는 이를 명확히 표시하고,
+      기존의 보수적인 스타일 변환 결과를 유지합니다.
+    - 변환 완료 후 최종 승인된 코드를 다시 분석하여
+      실제 최종 태그 상태를 반환합니다.
     """
 
     applied_rules: list[str] = []
@@ -180,29 +188,90 @@ def apply_coding_style(code: str, style: dict):
     if _normalize_code(code) == _normalize_code(transformed_code):
         transformed_code = code
 
+    execution_verification = None
+
+    if _is_changed(code, transformed_code):
+        execution_verification = verify_execution_equivalence(
+            original_code=code,
+            transformed_code=transformed_code,
+        )
+
+        verification_status = execution_verification.get("status")
+        equivalent = execution_verification.get("equivalent")
+
+        if verification_status == "different" or equivalent is False:
+            transformed_code = code
+            applied_rules.clear()
+
+            _add_unique(
+                warnings,
+                "스타일 변환 후 실행 출력이 원본 코드와 달라 "
+                "변환을 취소하고 원본 코드를 유지했습니다.",
+            )
+
+        elif verification_status == "not_verified":
+            verification_message = execution_verification.get(
+                "message",
+                "실행 결과 동일성을 자동으로 검증하지 못했습니다.",
+            )
+
+            _add_unique(
+                warnings,
+                "스타일 변환은 수행되었지만 실제 실행 결과의 동일성을 "
+                f"자동으로 확인하지 못했습니다. {verification_message}",
+            )
+
     final_diff = compare_after_transform(
         style=style,
         transformed_code=transformed_code,
     )
 
-    for warning in build_refactor_warnings(transform_plan.get("refactor_guides", [])):
+    for warning in build_refactor_warnings(
+        transform_plan.get("refactor_guides", [])
+    ):
         _add_unique(warnings, warning)
 
-    for warning in build_compare_only_warnings(transform_plan.get("compare_only", [])):
+    for warning in build_compare_only_warnings(
+        transform_plan.get("compare_only", [])
+    ):
         _add_unique(warnings, warning)
 
     if not applied_rules:
         _add_unique(
             warnings,
-            "저장된 스타일 태그를 기준으로 변환 계획을 생성했지만, 실행 결과를 유지하면서 안전하게 생성 가능한 스타일 태그 패턴이 발견되지 않아 원본 코드를 유지했습니다.",
+            "저장된 스타일 태그를 기준으로 변환 계획을 생성했지만, "
+            "실행 결과를 유지하면서 안전하게 생성 가능한 스타일 태그 패턴이 "
+            "발견되지 않아 원본 코드를 유지했습니다.",
+        )
+
+    if execution_verification is None:
+        execution_summary = (
+            "코드 변경이 없어 별도의 실행 결과 비교가 필요하지 않았습니다."
+        )
+    elif execution_verification.get("status") == "equivalent":
+        execution_summary = (
+            "변환 전·후 코드의 실제 실행 출력이 동일함을 확인했습니다."
+        )
+    elif execution_verification.get("status") == "different":
+        execution_summary = (
+            "변환 전·후 코드의 실제 실행 출력이 달라 변환을 취소했습니다."
+        )
+    else:
+        execution_summary = (
+            "변환 전·후 코드의 실제 실행 출력 동일성을 자동으로 "
+            "확인하지 못했습니다."
         )
 
     summary = (
-        "저장된 코딩 스타일의 문법 태그와 개념 태그를 목표 상태로 삼아 스타일 적용을 수행했습니다. "
-        "대상 코드를 단순히 개선하는 것이 아니라, 저장된 스타일에 포함된 태그와 유사한 구조가 되도록 변환을 시도했습니다. "
-        "단, 실행 결과가 달라질 위험이 있는 변환은 수행하지 않았습니다. "
-        f"최종 적용되지 않은 문법 태그: {_format_tag_list(final_diff.get('missing_syntax_tags', []))}. "
-        f"최종 적용되지 않은 개념 태그: {_format_tag_list(final_diff.get('missing_concept_tags', []))}."
+        "저장된 코딩 스타일의 문법 태그와 개념 태그를 목표 상태로 삼아 "
+        "스타일 적용을 수행했습니다. "
+        "대상 코드를 단순히 개선하는 것이 아니라, 저장된 스타일에 포함된 "
+        "태그와 유사한 구조가 되도록 변환을 시도했습니다. "
+        f"{execution_summary} "
+        f"최종 적용되지 않은 문법 태그: "
+        f"{_format_tag_list(final_diff.get('missing_syntax_tags', []))}. "
+        f"최종 적용되지 않은 개념 태그: "
+        f"{_format_tag_list(final_diff.get('missing_concept_tags', []))}."
     )
 
     return (
@@ -211,4 +280,5 @@ def apply_coding_style(code: str, style: dict):
         applied_rules,
         warnings,
         final_diff,
+        execution_verification,
     )

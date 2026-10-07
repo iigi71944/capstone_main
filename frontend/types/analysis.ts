@@ -32,6 +32,25 @@ export type FinalStyleAnalysis = {
   metrics: Record<string, number>;
 };
 
+export type ExecutionResult = {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exit_code: number | null;
+  timed_out: boolean;
+  blocked: boolean;
+  block_reason?: string | null;
+};
+
+export type ExecutionVerification = {
+  source: string;
+  status: "equivalent" | "different" | "not_verified";
+  equivalent: boolean | null;
+  original: ExecutionResult;
+  transformed: ExecutionResult;
+  message: string;
+};
+
 export interface CodingStyle {
   id: string;
   name: string;
@@ -50,6 +69,8 @@ export type StyleApplyResponse = {
   final_analysis?: FinalStyleAnalysis | null;
   missing_syntax_tags: SyntaxTag[];
   missing_concept_tags: ConceptTag[];
+
+  execution_verification?: ExecutionVerification | null;
 
   summary?: string | null;
   applied_rules: string[];
