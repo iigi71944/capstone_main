@@ -14,13 +14,22 @@ def apply_style_api(request: StyleApplyRequest):
             success=False,
             original_code=request.code,
             transformed_code="",
+            final_analysis=None,
+            missing_syntax_tags=[],
+            missing_concept_tags=[],
             applied_rules=[],
             warnings=[],
-            error="현재는 Python만 지원합니다."
+            error="현재는 Python만 지원합니다.",
         )
 
     try:
-        transformed_code, summary, applied_rules, warnings = apply_coding_style(
+        (
+            transformed_code,
+            summary,
+            applied_rules,
+            warnings,
+            final_diff,
+        ) = apply_coding_style(
             code=request.code,
             style=request.style.model_dump(),
         )
@@ -29,6 +38,9 @@ def apply_style_api(request: StyleApplyRequest):
             success=True,
             original_code=request.code,
             transformed_code=transformed_code,
+            final_analysis=final_diff.get("target_analysis"),
+            missing_syntax_tags=final_diff.get("missing_syntax_tags", []),
+            missing_concept_tags=final_diff.get("missing_concept_tags", []),
             summary=summary,
             applied_rules=applied_rules,
             warnings=warnings,
@@ -40,9 +52,12 @@ def apply_style_api(request: StyleApplyRequest):
             success=False,
             original_code=request.code,
             transformed_code="",
+            final_analysis=None,
+            missing_syntax_tags=[],
+            missing_concept_tags=[],
             applied_rules=[],
             warnings=[],
-            error=f"문법 오류: {e.msg} (line {e.lineno})"
+            error=f"문법 오류: {e.msg} (line {e.lineno})",
         )
 
     except Exception as e:
@@ -50,7 +65,10 @@ def apply_style_api(request: StyleApplyRequest):
             success=False,
             original_code=request.code,
             transformed_code="",
+            final_analysis=None,
+            missing_syntax_tags=[],
+            missing_concept_tags=[],
             applied_rules=[],
             warnings=[],
-            error=f"스타일 적용 중 오류 발생: {str(e)}"
+            error=f"스타일 적용 중 오류 발생: {str(e)}",
         )

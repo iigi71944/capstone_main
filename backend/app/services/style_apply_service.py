@@ -154,6 +154,7 @@ def apply_coding_style(code: str, style: dict):
     - 대상 코드를 '더 좋은 코드'로 바꾸는 것이 아니라,
       저장된 스타일의 문법/개념 태그에 가까워지도록 구조와 형태를 변경합니다.
     - 실행 결과가 달라질 위험이 있는 변환은 수행하지 않습니다.
+    - 변환 완료 후 최종 코드를 다시 분석하여 실제 최종 태그 상태를 반환합니다.
     """
 
     applied_rules: list[str] = []
@@ -176,6 +177,9 @@ def apply_coding_style(code: str, style: dict):
             warnings=warnings,
         )
 
+    if _normalize_code(code) == _normalize_code(transformed_code):
+        transformed_code = code
+
     final_diff = compare_after_transform(
         style=style,
         transformed_code=transformed_code,
@@ -193,9 +197,6 @@ def apply_coding_style(code: str, style: dict):
             "저장된 스타일 태그를 기준으로 변환 계획을 생성했지만, 실행 결과를 유지하면서 안전하게 생성 가능한 스타일 태그 패턴이 발견되지 않아 원본 코드를 유지했습니다.",
         )
 
-    if _normalize_code(code) == _normalize_code(transformed_code):
-        transformed_code = code
-
     summary = (
         "저장된 코딩 스타일의 문법 태그와 개념 태그를 목표 상태로 삼아 스타일 적용을 수행했습니다. "
         "대상 코드를 단순히 개선하는 것이 아니라, 저장된 스타일에 포함된 태그와 유사한 구조가 되도록 변환을 시도했습니다. "
@@ -204,4 +205,10 @@ def apply_coding_style(code: str, style: dict):
         f"최종 적용되지 않은 개념 태그: {_format_tag_list(final_diff.get('missing_concept_tags', []))}."
     )
 
-    return transformed_code, summary, applied_rules, warnings
+    return (
+        transformed_code,
+        summary,
+        applied_rules,
+        warnings,
+        final_diff,
+    )

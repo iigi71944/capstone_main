@@ -38,7 +38,6 @@ interface StyleApplySectionProps {
   setStyleApplyResult: (value: StyleApplyResult | null) => void;
   editableTransformedCode: string;
   setEditableTransformedCode: (value: string) => void;
-  handleCopyText: (text: string, message: string) => void;
 }
 
 export default function StyleApplySection({
@@ -54,8 +53,25 @@ export default function StyleApplySection({
   setStyleApplyResult,
   editableTransformedCode,
   setEditableTransformedCode,
-  handleCopyText,
 }: StyleApplySectionProps) {
+  const missingSyntaxNames = new Set(
+    styleApplyResult?.missingSyntaxTags.map((item) => item.tag) ?? []
+  );
+
+  const missingConceptNames = new Set(
+    styleApplyResult?.missingConceptTags.map((item) => item.tag) ?? []
+  );
+
+  const appliedSyntaxTags =
+    selectedStyle?.syntax_tags.filter(
+      (item) => !missingSyntaxNames.has(item.tag)
+    ) ?? [];
+
+  const appliedConceptTags =
+    selectedStyle?.concept_tags.filter(
+      (item) => !missingConceptNames.has(item.tag)
+    ) ?? [];
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
@@ -261,6 +277,7 @@ export default function StyleApplySection({
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                       Before
                     </p>
+
                     <p className="text-sm font-semibold text-slate-800">
                       변환 전 코드
                     </p>
@@ -272,6 +289,24 @@ export default function StyleApplySection({
                   code={styleApplyResult.applyResponse.original_code}
                   readOnly={true}
                 />
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Execution Result
+                    </p>
+
+                    <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                      실행 결과
+                    </p>
+                  </div>
+
+                  <div className="min-h-[110px] px-4 py-4">
+                    <p className="text-sm leading-relaxed text-slate-400">
+                      변환 전 코드의 실행 결과가 표시됩니다.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="min-w-0">
@@ -284,6 +319,7 @@ export default function StyleApplySection({
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                       After
                     </p>
+
                     <p className="text-sm font-semibold text-slate-800">
                       스타일 적용 후 코드
                     </p>
@@ -297,18 +333,22 @@ export default function StyleApplySection({
                   onChange={setEditableTransformedCode}
                 />
 
-                <div className="mt-3 flex justify-end">
-                  <button
-                    onClick={() =>
-                      handleCopyText(
-                        editableTransformedCode,
-                        "스타일 적용 코드가 복사되었습니다."
-                      )
-                    }
-                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                  >
-                    적용 코드 복사
-                  </button>
+                <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Execution Result
+                    </p>
+
+                    <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                      실행 결과
+                    </p>
+                  </div>
+
+                  <div className="min-h-[110px] px-4 py-4">
+                    <p className="text-sm leading-relaxed text-slate-400">
+                      스타일 적용 후 코드의 실행 결과가 표시됩니다.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -366,11 +406,150 @@ export default function StyleApplySection({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
-                <p className="text-xs leading-relaxed text-slate-500">
-                  문법 태그와 개념 태그의 실제 적용 여부는 변환 후 재분석 기능을
-                  보완한 뒤 이 영역에 표시할 예정입니다.
-                </p>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Final Style Analysis
+                  </p>
+
+                  <h4 className="mt-1 font-semibold text-slate-900">
+                    실제 스타일 반영 결과
+                  </h4>
+
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    스타일 적용 후 코드를 다시 분석하여 저장된 스타일 태그가
+                    실제 코드에 반영되었는지 확인한 결과입니다.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <div className="rounded-xl border border-green-200 bg-white p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-green-800">
+                        적용 확인
+                      </h5>
+
+                      <span className="text-xs font-semibold text-green-700">
+                        {appliedSyntaxTags.length +
+                          appliedConceptTags.length}
+                        개
+                      </span>
+                    </div>
+
+                    {appliedSyntaxTags.length === 0 &&
+                    appliedConceptTags.length === 0 ? (
+                      <p className="text-sm leading-relaxed text-slate-500">
+                        최종 코드에서 확인된 저장 스타일 태그가 없습니다.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {appliedSyntaxTags.length > 0 && (
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-slate-500">
+                              문법 태그
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {appliedSyntaxTags.map((tag, idx) => (
+                                <span
+                                  key={`applied-syntax-${idx}`}
+                                  className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                                >
+                                  {tag.tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {appliedConceptTags.length > 0 && (
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-slate-500">
+                              개념 태그
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {appliedConceptTags.map((tag, idx) => (
+                                <span
+                                  key={`applied-concept-${idx}`}
+                                  className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700"
+                                >
+                                  {tag.tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-white p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h5 className="font-semibold text-amber-800">
+                        미적용
+                      </h5>
+
+                      <span className="text-xs font-semibold text-amber-700">
+                        {styleApplyResult.missingSyntaxTags.length +
+                          styleApplyResult.missingConceptTags.length}
+                        개
+                      </span>
+                    </div>
+
+                    {styleApplyResult.missingSyntaxTags.length === 0 &&
+                    styleApplyResult.missingConceptTags.length === 0 ? (
+                      <p className="text-sm leading-relaxed text-slate-500">
+                        저장 스타일의 모든 대상 태그가 최종 코드에서
+                        확인되었습니다.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {styleApplyResult.missingSyntaxTags.length > 0 && (
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-slate-500">
+                              문법 태그
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {styleApplyResult.missingSyntaxTags.map(
+                                (tag, idx) => (
+                                  <span
+                                    key={`missing-syntax-${idx}`}
+                                    className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
+                                  >
+                                    {tag.tag}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {styleApplyResult.missingConceptTags.length > 0 && (
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-slate-500">
+                              개념 태그
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {styleApplyResult.missingConceptTags.map(
+                                (tag, idx) => (
+                                  <span
+                                    key={`missing-concept-${idx}`}
+                                    className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"
+                                  >
+                                    {tag.tag}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

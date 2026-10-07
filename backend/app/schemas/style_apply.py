@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
 
 
 class StyleTagItem(BaseModel):
@@ -25,11 +25,22 @@ class StyleApplyRequest(BaseModel):
     style: CodingStylePayload
 
 
+class FinalAnalysis(BaseModel):
+    syntax_tags: List[StyleTagItem] = Field(default_factory=list)
+    concept_tags: List[StyleTagItem] = Field(default_factory=list)
+    metrics: Dict[str, int] = Field(default_factory=dict)
+
+
 class StyleApplyResponse(BaseModel):
     success: bool
     original_code: str
     transformed_code: str
+
+    final_analysis: Optional[FinalAnalysis] = None
+    missing_syntax_tags: List[StyleTagItem] = Field(default_factory=list)
+    missing_concept_tags: List[StyleTagItem] = Field(default_factory=list)
+
     summary: Optional[str] = None
-    applied_rules: List[str] = []
-    warnings: List[str] = []
+    applied_rules: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
     error: Optional[str] = None
