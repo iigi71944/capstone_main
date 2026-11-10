@@ -1,3 +1,4 @@
+
 import ast
 
 
@@ -26,6 +27,7 @@ class CollectionStyleTransformer(ast.NodeTransformer):
 
         if self.goal == "append":
             expanded = self._expand_comprehension_assignment(node)
+
             if expanded is not None:
                 self.changed = True
                 return expanded
@@ -41,7 +43,10 @@ class CollectionStyleTransformer(ast.NodeTransformer):
 
         while i < len(body):
             if i + 1 < len(body):
-                transformed = self._try_append_loop_to_comprehension(body[i], body[i + 1])
+                transformed = self._try_append_loop_to_comprehension(
+                    body[i], body[i + 1]
+                )
+
                 if transformed is not None:
                     new_body.append(transformed)
                     self.changed = True
@@ -53,36 +58,85 @@ class CollectionStyleTransformer(ast.NodeTransformer):
 
         return new_body
 
-    def _try_append_loop_to_comprehension(self, assign_stmt: ast.stmt, for_stmt: ast.stmt):
+    @staticmethod
+    def _reads_name(node: ast.AST | None, name: str) -> bool:
+        if node is None:
+            return False
+
+        return any(
+            isinstance(child, ast.Name)
+            and isinstance(child.ctx, ast.Load)
+            and child.id == name
+            for child in ast.walk(node)
+        )
+
+    def _try_append_loop_to_comprehension(
+        self,
+        assign_stmt: ast.stmt,
+        for_stmt: ast.stmt,
+    ):
         if not isinstance(assign_stmt, ast.Assign):
             return None
 
-        if len(assign_stmt.targets) != 1 or not isinstance(assign_stmt.targets[0], ast.Name):
+        if len(assign_stmt.targets) != 1:
+            return None
+
+        if not isinstance(assign_stmt.targets[0], ast.Name):
             return None
 
         result_name = assign_stmt.targets[0].id
 
-        if not isinstance(assign_stmt.value, ast.List) or assign_stmt.value.elts:
+        if not isinstance(assign_stmt.value, ast.List):
+            return None
+
+        if assign_stmt.value.elts:
             return None
 
         if not isinstance(for_stmt, ast.For):
             return None
 
-        append_value, condition = self._extract_append(for_stmt, result_name)
+        append_value, condition = self._extract_append(
+            for_stmt,
+            result_name,
+        )
 
         if append_value is None:
             return None
 
+        # A comprehension evaluates the iterable, element,
+        # and conditions before the resulting list is assigned.
+        # If any of them reads the result variable, converting
+        # the append loop may cause an unbound variable error
+        # or change the behavior of the original code.
+        if any(
+            self._reads_name(expr, result_name)
+            for expr in (
+                for_stmt.iter,
+                append_value,
+                condition,
+            )
+        ):
+            return None
+
         return ast.fix_missing_locations(
             ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())],
+                targets=[
+                    ast.Name(
+                        id=result_name,
+                        ctx=ast.Store(),
+                    )
+                ],
                 value=ast.ListComp(
                     elt=append_value,
                     generators=[
                         ast.comprehension(
                             target=for_stmt.target,
                             iter=for_stmt.iter,
-                            ifs=[condition] if condition is not None else [],
+                            ifs=(
+                                [condition]
+                                if condition is not None
+                                else []
+                            ),
                             is_async=0,
                         )
                     ],
@@ -90,7 +144,11 @@ class CollectionStyleTransformer(ast.NodeTransformer):
             )
         )
 
-    def _extract_append(self, for_stmt: ast.For, result_name: str):
+    def _extract_append(
+        self,
+        for_stmt: ast.For,
+        result_name: str,
+    ):
         if len(for_stmt.body) != 1:
             return None, None
 
@@ -100,6 +158,7 @@ class CollectionStyleTransformer(ast.NodeTransformer):
         if isinstance(only_stmt, ast.If):
             if only_stmt.orelse or len(only_stmt.body) != 1:
                 return None, None
+
             condition = only_stmt.test
             append_stmt = only_stmt.body[0]
         else:
@@ -118,18 +177,31 @@ class CollectionStyleTransformer(ast.NodeTransformer):
 
         return append_stmt.value.args[0], condition
 
-    def _expand_comprehension_assignment(self, node: ast.Assign):
-        if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+    def _expand_comprehension_assignment(
+        self,
+        node: ast.Assign,
+    ):
+        if len(node.targets) != 1:
+            return None
+
+        if not isinstance(node.targets[0], ast.Name):
             return None
 
         target_name = node.targets[0].id
 
         if isinstance(node.value, ast.ListComp):
-            return self._expand_list_comp(target_name, node.value)
+            return self._expand_list_comp(
+                target_name,
+                node.value,
+            )
 
         return None
 
-    def _expand_list_comp(self, target_name: str, comp: ast.ListComp):
+    def _expand_list_comp(
+        self,
+        target_name: str,
+        comp: ast.ListComp,
+    ):
         if len(comp.generators) != 1:
             return None
 
@@ -139,14 +211,25 @@ class CollectionStyleTransformer(ast.NodeTransformer):
             return None
 
         result_assign = ast.Assign(
-            targets=[ast.Name(id=target_name, ctx=ast.Store())],
-            value=ast.List(elts=[], ctx=ast.Load()),
+            targets=[
+                ast.Name(
+                    id=target_name,
+                    ctx=ast.Store(),
+                )
+            ],
+            value=ast.List(
+                elts=[],
+                ctx=ast.Load(),
+            ),
         )
 
         append_call = ast.Expr(
             value=ast.Call(
                 func=ast.Attribute(
-                    value=ast.Name(id=target_name, ctx=ast.Load()),
+                    value=ast.Name(
+                        id=target_name,
+                        ctx=ast.Load(),
+                    ),
                     attr="append",
                     ctx=ast.Load(),
                 ),
@@ -190,8 +273,13 @@ def normalize_code(code: str) -> str:
 def _transform_collection(code: str, goal: str) -> str:
     try:
         tree = ast.parse(code)
-        transformer = CollectionStyleTransformer(goal=goal)
+
+        transformer = CollectionStyleTransformer(
+            goal=goal,
+        )
+
         transformed_tree = transformer.visit(tree)
+
         ast.fix_missing_locations(transformed_tree)
 
         if not transformer.changed:
@@ -209,8 +297,14 @@ def _transform_collection(code: str, goal: str) -> str:
 
 
 def transform_to_append_collection_style(code: str) -> str:
-    return _transform_collection(code, goal="append")
+    return _transform_collection(
+        code,
+        goal="append",
+    )
 
 
 def transform_to_comprehension_collection_style(code: str) -> str:
-    return _transform_collection(code, goal="comprehension")
+    return _transform_collection(
+        code,
+        goal="comprehension",
+    )

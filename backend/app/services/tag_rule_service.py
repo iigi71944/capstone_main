@@ -507,18 +507,6 @@ CONCEPT_TAG_RULES = {
         "difficulty": "어려운 구조",
         "style_role": "구조 판단",
     },
-    "간결성 저하 가능 구조": {
-        "category": "복잡도",
-        "concept_level": "복잡 구조",
-        "difficulty": "어려운 구조",
-        "style_role": "간결성 판단",
-    },
-    "구조화 필요 코드": {
-        "category": "구조화",
-        "concept_level": "중간 구조",
-        "difficulty": "중간 구조",
-        "style_role": "개선 필요성 판단",
-    },
     "입출력 중심 코드": {
         "category": "입출력",
         "concept_level": "기본 구조",
@@ -573,12 +561,6 @@ CONCEPT_TAG_RULES = {
         "difficulty": "중간 구조",
         "style_role": "매핑 판단",
     },
-    "반복 인덱스 개선 가능 구조": {
-        "category": "반복문",
-        "concept_level": "기본 구조",
-        "difficulty": "쉬운 구조",
-        "style_role": "개선 가능성 판단",
-    },
     "함수 매개변수 활용 구조": {
         "category": "함수",
         "concept_level": "기본 구조",
@@ -615,12 +597,6 @@ CONCEPT_TAG_RULES = {
         "difficulty": "어려운 구조",
         "style_role": "비동기 흐름 판단",
     },
-    "중복 로직 포함 구조": {
-        "category": "중복",
-        "concept_level": "중간 구조",
-        "difficulty": "중간 구조",
-        "style_role": "리팩토링 필요성 판단",
-    },
     "단일 책임 함수 구조": {
         "category": "함수",
         "concept_level": "기본 구조",
@@ -631,7 +607,7 @@ CONCEPT_TAG_RULES = {
         "category": "함수",
         "concept_level": "복잡 구조",
         "difficulty": "어려운 구조",
-        "style_role": "리팩토링 필요성 판단",
+        "style_role": "함수 길이 특성 판단",
     },
     "전역 상태 의존 구조": {
         "category": "상태 관리",

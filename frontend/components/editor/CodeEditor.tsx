@@ -1,3 +1,4 @@
+
 "use client";
 
 import Editor from "@monaco-editor/react";
@@ -33,7 +34,6 @@ export default function CodeEditor({
           lineNumbersMinChars: 4,
           lineDecorationsWidth: 18,
           folding: false,
-          renderIndentGuides: true,
           guides: {
             indentation: true,
           },

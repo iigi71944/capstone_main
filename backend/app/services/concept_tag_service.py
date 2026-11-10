@@ -1,3 +1,4 @@
+
 from app.services.tag_rule_service import enrich_concept_tag
 
 
@@ -19,16 +20,6 @@ REDUNDANT_CONCEPT_RULES = {
         "데이터 필터링 구조",
     ],
 
-    # 인덱스 반복 개선 가능 태그가 있으면 인덱스 기반 반복 태그 제거
-    "인덱스 기반 반복 사용": [
-        "반복 인덱스 개선 가능 구조",
-    ],
-
-    # 타입 명시가 있으면 함수 매개변수 활용 구조보다 더 구체적으로 판단
-    "함수 매개변수 활용 구조": [
-        "타입 명시 코드 구조",
-    ],
-
     # 파일 입출력 구조가 있으면 파일/자원 관리 구조는 중복 성격이 강함
     "파일/자원 관리 구조": [
         "파일 입출력 구조",
@@ -42,14 +33,6 @@ REDUNDANT_CONCEPT_RULES = {
     # 깊은 중첩 구조가 있으면 조건문 중첩 구조는 하위 설명으로 판단
     "조건문 중첩 구조": [
         "깊은 중첩 구조",
-    ],
-
-    # 간결성 저하 가능 구조가 있으면 조건문/반복문 중심 구조는 일부 중복됨
-    "조건문 중심 구조": [
-        "간결성 저하 가능 구조",
-    ],
-    "반복문 중심 구조": [
-        "간결성 저하 가능 구조",
     ],
 
     # 전역 상태 의존 구조가 있으면 상태 변경 중심 구조보다 더 구체적임
@@ -166,9 +149,6 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     string_method_call_count = metrics.get("string_method_call_count", 0)
     dict_method_call_count = metrics.get("dict_method_call_count", 0)
     type_hint_count = metrics.get("type_hint_count", 0)
-    default_param_count = metrics.get("default_param_count", 0)
-    positional_arg_count = metrics.get("positional_arg_count", 0)
-    keyword_arg_count = metrics.get("keyword_arg_count", 0)
     global_count = metrics.get("global_count", 0)
     await_count = metrics.get("await_count", 0)
     max_function_body_length = metrics.get("max_function_body_length", 0)
@@ -192,7 +172,6 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
 
     if index_loop_count >= 1:
         concept_tags.append(make_concept_tag("인덱스 기반 반복 사용", 1.0))
-        concept_tags.append(make_concept_tag("반복 인덱스 개선 가능 구조", 0.9))
 
     if direct_loop_count >= 1:
         concept_tags.append(make_concept_tag("직접 반복 사용", 1.0))
@@ -245,25 +224,22 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     if match_count >= 1:
         concept_tags.append(make_concept_tag("패턴 매칭 구조", 1.0))
 
-    if if_count >= 3 or loop_count >= 3 or max_nesting_depth >= 3:
-        concept_tags.append(make_concept_tag("간결성 저하 가능 구조", 0.8))
-
-    if function_count == 0 and (loop_count >= 1 or if_count >= 1 or assign_count >= 3):
-        concept_tags.append(make_concept_tag("구조화 필요 코드", 0.8))
-
     if print_call_count >= 1 or input_call_count >= 1 or open_call_count >= 1:
         concept_tags.append(make_concept_tag("입출력 중심 코드", 0.9))
 
-    if if_count >= 1 and (append_call_count >= 1 or comprehension_count >= 1):
+    # if문과 append가 실제 필터링 구조로 연결되어 있는지 확인합니다.
+    if metrics.get("filter_pattern_count", 0) >= 1:
         concept_tags.append(make_concept_tag("데이터 필터링 구조", 0.9))
 
     if bin_op_count >= 1 or comprehension_count >= 1:
         concept_tags.append(make_concept_tag("데이터 변환 구조", 0.8))
 
-    if sum_call_count >= 1 or aug_assign_count >= 1:
+    # 인덱스 증가와 실제 반복 누적을 구분합니다.
+    if sum_call_count >= 1 or metrics.get("aggregation_pattern_count", 0) >= 1:
         concept_tags.append(make_concept_tag("데이터 집계 구조", 0.9))
 
-    if loop_count >= 1 and if_count >= 1 and return_count >= 1:
+    # 반복 중 조건에 따라 값을 찾고 반환하거나 종료하는 구조입니다.
+    if metrics.get("search_pattern_count", 0) >= 1:
         concept_tags.append(make_concept_tag("검색/탐색 중심 구조", 0.8))
 
     if sorted_call_count >= 1:
@@ -278,7 +254,8 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     if dict_literal_count >= 1 or dict_method_call_count >= 1:
         concept_tags.append(make_concept_tag("딕셔너리 기반 매핑 구조", 0.8))
 
-    if default_param_count >= 1 or positional_arg_count >= 2 or keyword_arg_count >= 1:
+    # 함수 본문에서 실제로 참조하는 매개변수가 있어야 합니다.
+    if metrics.get("parameter_using_function_count", 0) >= 1:
         concept_tags.append(make_concept_tag("함수 매개변수 활용 구조", 0.8))
 
     if type_hint_count >= 1:
@@ -297,14 +274,11 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     if input_call_count >= 1:
         concept_tags.append(make_concept_tag("사용자 입력 처리 구조", 1.0))
 
-    if open_call_count >= 1 or with_count >= 1:
+    if open_call_count >= 1:
         concept_tags.append(make_concept_tag("파일 입출력 구조", 1.0))
 
     if async_function_count >= 1 or await_count >= 1:
         concept_tags.append(make_concept_tag("비동기 처리 구조", 1.0))
-
-    if append_call_count >= 2 or if_count >= 3 or loop_count >= 3:
-        concept_tags.append(make_concept_tag("중복 로직 포함 구조", 0.8))
 
     if function_count >= 2 and short_function_count >= 2:
         concept_tags.append(make_concept_tag("단일 책임 함수 구조", 0.9))

@@ -50,6 +50,18 @@ type SharedCodingStyle = CodingStyle & {
 const GUEST_EMAIL = "guest";
 const STORAGE_KEY_PREFIX = "capstone_saved_coding_styles";
 const CURRENT_USER_STORAGE_KEY = "capstone_current_user";
+const MIGRATION_BACKUP_SUFFIX = "_backup_before_tag_migration_v1";
+
+// 이전 버전에서 개선 진단으로 취급했지만 실제로는 인덱스 반복을 의미했던 태그입니다.
+const LEGACY_INDEX_LOOP_TAG = "반복 인덱스 개선 가능 구조";
+const INDEX_LOOP_STYLE_TAG = "인덱스 기반 반복 사용";
+
+// 코딩 스타일의 특징이 아니라 개선 진단에 해당하므로 저장 스타일에서 제외합니다.
+const REMOVED_DIAGNOSTIC_TAGS = new Set([
+  "간결성 저하 가능 구조",
+  "구조화 필요 코드",
+  "중복 로직 포함 구조",
+]);
 
 const TEST_ACCOUNTS = [
   { email: "test001@gmail.com", password: "12090" },
@@ -69,6 +81,88 @@ const isMenuType = (value: string): value is MenuType => {
     "syntax",
     "concept",
   ].includes(value);
+};
+
+/**
+ * 기존 저장 스타일의 태그를 현재 체계로 옮깁니다.
+ * 이름, ID, 작성일, 공유 정보 및 기타 데이터는 그대로 유지합니다.
+ * 새로 저장되는 코드는 이전 진단 태그를 생성하지 않습니다.
+ */
+const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
+  const originalTags = Array.isArray(style.concept_tags)
+    ? style.concept_tags
+    : [];
+
+  const needsMigration = originalTags.some(
+    (item) =>
+      item?.tag === LEGACY_INDEX_LOOP_TAG ||
+      REMOVED_DIAGNOSTIC_TAGS.has(item?.tag)
+  );
+
+  if (!needsMigration) {
+    return style;
+  }
+
+  // 현재 스타일 태그가 이미 존재하면 이전 진단 태그로 덮어쓰지 않습니다.
+  const hasCurrentIndexTag = originalTags.some(
+    (item) => item?.tag === INDEX_LOOP_STYLE_TAG
+  );
+  const seenTags = new Set<string>();
+  const migratedTags: ConceptTag[] = [];
+
+  for (const item of originalTags) {
+    if (!item || typeof item.tag !== "string") {
+      continue;
+    }
+
+    if (REMOVED_DIAGNOSTIC_TAGS.has(item.tag)) {
+      continue;
+    }
+
+    if (item.tag === LEGACY_INDEX_LOOP_TAG) {
+      if (hasCurrentIndexTag || seenTags.has(INDEX_LOOP_STYLE_TAG)) {
+        continue;
+      }
+
+      migratedTags.push({
+        tag: INDEX_LOOP_STYLE_TAG,
+        count: item.count,
+        score: item.score,
+      });
+      seenTags.add(INDEX_LOOP_STYLE_TAG);
+      continue;
+    }
+
+    if (!seenTags.has(item.tag)) {
+      migratedTags.push(item);
+      seenTags.add(item.tag);
+    }
+  }
+
+  // 과거 시스템이 자동 생성한 설명에 남아 있는 진단 태그도 정리합니다.
+  // 사용자가 직접 작성한 설명은 변경하지 않습니다.
+  let migratedDescription = style.description;
+  if (
+    typeof style.description === "string" &&
+    style.description.startsWith("이 코딩 스타일은 개념 태그(")
+  ) {
+    const conceptNames =
+      migratedTags.map((item) => item.tag).join(", ") ||
+      "특정 개념 태그 없음";
+    const syntaxNames =
+      (style.syntax_tags ?? []).map((item) => item.tag).join(", ") ||
+      "저장 대상 핵심 문법 태그 없음";
+
+    migratedDescription =
+      `이 코딩 스타일은 개념 태그(${conceptNames})를 코드 구조 기준으로 사용하고, ` +
+      `저장용 핵심 문법 태그(${syntaxNames})를 적용 가능한 문법 한계로 사용한다.`;
+  }
+
+  return {
+    ...style,
+    concept_tags: migratedTags,
+    description: migratedDescription,
+  };
 };
 
 export default function HomePage() {
@@ -140,10 +234,39 @@ print(average)`);
     }
 
     try {
-      const parsed = JSON.parse(raw) as SharedCodingStyle[];
-      setSavedStyles(parsed);
-    } catch {
-      localStorage.removeItem(storageKey);
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        !Array.isArray(parsed) ||
+        !parsed.every((style) => style && typeof style === "object")
+      ) {
+        console.error("저장된 코딩 스타일의 데이터 형식이 올바르지 않습니다.");
+        setSavedStyles([]);
+        return;
+      }
+
+      const originalStyles = parsed as SharedCodingStyle[];
+      const migratedStyles = originalStyles.map(migrateSavedStyle);
+      const hasMigration = migratedStyles.some(
+        (style, index) => style !== originalStyles[index]
+      );
+
+      if (hasMigration) {
+        try {
+          const backupKey = `${storageKey}${MIGRATION_BACKUP_SUFFIX}`;
+          if (localStorage.getItem(backupKey) === null) {
+            localStorage.setItem(backupKey, raw);
+          }
+          localStorage.setItem(storageKey, JSON.stringify(migratedStyles));
+        } catch (error) {
+          // 저장에 실패하더라도 현재 화면에서는 변환한 스타일을 사용할 수 있습니다.
+          console.error("코딩 스타일 이전 데이터 저장에 실패했습니다:", error);
+        }
+      }
+
+      setSavedStyles(migratedStyles);
+    } catch (error) {
+      // 복구 가능성을 위해 잘못된 데이터도 임의로 삭제하지 않습니다.
+      console.error("저장된 코딩 스타일을 읽을 수 없습니다:", error);
       setSavedStyles([]);
     }
   };
