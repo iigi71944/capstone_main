@@ -1,4 +1,7 @@
+
 "use client";
+
+import { useRef, useState } from "react";
 
 import CodeEditor from "../editor/CodeEditor";
 import CodeViewer from "../editor/CodeViewer";
@@ -8,8 +11,10 @@ import type {
   CodingStyle,
   ConceptTag,
   ExecutionResult,
+  FunctionTestCase,
   StyleApplyResponse,
   SyntaxTag,
+  VerificationStatus,
 } from "../../types/analysis";
 
 type SharedCodingStyle = CodingStyle & {
@@ -33,12 +38,70 @@ interface StyleApplySectionProps {
   selectedStyle?: SharedCodingStyle;
   targetCode: string;
   setTargetCode: (value: string) => void;
-  handleApplyStyle: () => void | Promise<void>;
+  handleApplyStyle: (
+    functionCases?: FunctionTestCase[] | null
+  ) => void | Promise<void>;
   styleApplyLoading: boolean;
   styleApplyResult: StyleApplyResult | null;
-  setStyleApplyResult: (value: StyleApplyResult | null) => void;
+  setStyleApplyResult: (
+    value: StyleApplyResult | null
+  ) => void;
   editableTransformedCode: string;
-  setEditableTransformedCode: (value: string) => void;
+  setEditableTransformedCode: (
+    value: string
+  ) => void;
+}
+
+interface FunctionTestDraft {
+  id: number;
+  functionName: string;
+  argsText: string;
+  kwargsText: string;
+}
+
+const MAX_FUNCTION_CASES = 8;
+
+const createFunctionDraft = (
+  id: number
+): FunctionTestDraft => ({
+  id,
+  functionName: "",
+  argsText: "[]",
+  kwargsText: "{}",
+});
+
+const KEYWORD_ARGUMENT_EXAMPLE = `def greet(name, punctuation="!"):
+    return f"Hello, {name}{punctuation}"
+
+greet("Jin", punctuation="?")
+# 결과: "Hello, Jin?"`;
+
+function getStatusLabel(
+  status: VerificationStatus
+): string {
+  if (status === "equivalent") {
+    return "일치";
+  }
+
+  if (status === "different") {
+    return "불일치";
+  }
+
+  return "검증 불가";
+}
+
+function getStatusClass(
+  status: VerificationStatus
+): string {
+  if (status === "equivalent") {
+    return "border-green-200 bg-green-50 text-green-800";
+  }
+
+  if (status === "different") {
+    return "border-red-200 bg-red-50 text-red-800";
+  }
+
+  return "border-amber-200 bg-amber-50 text-amber-800";
 }
 
 function ExecutionOutput({
@@ -64,7 +127,8 @@ function ExecutionOutput({
         </p>
 
         <p className="text-sm leading-relaxed text-slate-600">
-          {result.block_reason ?? "현재 자동 실행 검증 대상이 아닙니다."}
+          {result.block_reason ??
+            "현재 자동 실행 검증 대상이 아닙니다."}
         </p>
       </div>
     );
@@ -131,12 +195,194 @@ export default function StyleApplySection({
   editableTransformedCode,
   setEditableTransformedCode,
 }: StyleApplySectionProps) {
+  const [useFunctionTests, setUseFunctionTests] =
+    useState(false);
+
+  const [functionDrafts, setFunctionDrafts] =
+    useState<FunctionTestDraft[]>([
+      createFunctionDraft(1),
+    ]);
+
+  const nextFunctionDraftId = useRef(2);
+
+  const [
+    functionInputError,
+    setFunctionInputError,
+  ] = useState("");
+
+  const clearPreviousResult = () => {
+    setStyleApplyResult(null);
+    setEditableTransformedCode("");
+  };
+
+  const updateFunctionDraft = (
+    id: number,
+    field:
+      | "functionName"
+      | "argsText"
+      | "kwargsText",
+    value: string
+  ) => {
+    setFunctionDrafts((current) =>
+      current.map((draft) =>
+        draft.id === id
+          ? {
+              ...draft,
+              [field]: value,
+            }
+          : draft
+      )
+    );
+
+    setFunctionInputError("");
+    clearPreviousResult();
+  };
+
+  const addFunctionDraft = () => {
+    if (
+      functionDrafts.length >= MAX_FUNCTION_CASES
+    ) {
+      return;
+    }
+
+    const id = nextFunctionDraftId.current;
+    nextFunctionDraftId.current += 1;
+
+    setFunctionDrafts((current) => [
+      ...current,
+      createFunctionDraft(id),
+    ]);
+
+    setFunctionInputError("");
+    clearPreviousResult();
+  };
+
+  const removeFunctionDraft = (id: number) => {
+    setFunctionDrafts((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      return current.filter(
+        (draft) => draft.id !== id
+      );
+    });
+
+    setFunctionInputError("");
+    clearPreviousResult();
+  };
+
+  const parseFunctionCases = ():
+    | FunctionTestCase[]
+    | null => {
+    const cases: FunctionTestCase[] = [];
+
+    for (
+      const [index, draft] of
+      functionDrafts.entries()
+    ) {
+      const functionName =
+        draft.functionName.trim();
+
+      if (!functionName) {
+        setFunctionInputError(
+          `${index + 1}번 테스트의 함수 이름을 입력해주세요.`
+        );
+
+        return null;
+      }
+
+      let argsValue: unknown;
+      let kwargsValue: unknown;
+
+      try {
+        argsValue = JSON.parse(
+          draft.argsText
+        );
+      } catch {
+        setFunctionInputError(
+          `${index + 1}번 테스트의 '순서대로 넣을 값'을 확인해주세요. [5] 또는 ["Jin"]처럼 작성해야 합니다.`
+        );
+
+        return null;
+      }
+
+      if (!Array.isArray(argsValue)) {
+        setFunctionInputError(
+          `${index + 1}번 테스트의 '순서대로 넣을 값'은 대괄호 [ ]로 작성해야 합니다.`
+        );
+
+        return null;
+      }
+
+      try {
+        kwargsValue = JSON.parse(
+          draft.kwargsText
+        );
+      } catch {
+        setFunctionInputError(
+          `${index + 1}번 테스트의 '이름을 지정해 넣을 값'을 확인해주세요. {"punctuation": "?"}처럼 작성하거나 사용하지 않으면 {}를 입력해주세요.`
+        );
+
+        return null;
+      }
+
+      if (
+        kwargsValue === null ||
+        typeof kwargsValue !== "object" ||
+        Array.isArray(kwargsValue)
+      ) {
+        setFunctionInputError(
+          `${index + 1}번 테스트의 '이름을 지정해 넣을 값'은 중괄호 { }로 작성해야 합니다.`
+        );
+
+        return null;
+      }
+
+      cases.push({
+        function: functionName,
+        args:
+          argsValue as FunctionTestCase["args"],
+        kwargs:
+          kwargsValue as FunctionTestCase["kwargs"],
+      });
+    }
+
+    setFunctionInputError("");
+
+    return cases;
+  };
+
+  const submitStyleApplication = () => {
+    if (styleApplyLoading) {
+      return;
+    }
+
+    if (!useFunctionTests) {
+      setFunctionInputError("");
+      void handleApplyStyle();
+      return;
+    }
+
+    const cases = parseFunctionCases();
+
+    if (cases === null) {
+      return;
+    }
+
+    void handleApplyStyle(cases);
+  };
+
   const missingSyntaxNames = new Set(
-    styleApplyResult?.missingSyntaxTags.map((item) => item.tag) ?? []
+    styleApplyResult?.missingSyntaxTags.map(
+      (item) => item.tag
+    ) ?? []
   );
 
   const missingConceptNames = new Set(
-    styleApplyResult?.missingConceptTags.map((item) => item.tag) ?? []
+    styleApplyResult?.missingConceptTags.map(
+      (item) => item.tag
+    ) ?? []
   );
 
   const appliedSyntaxTags =
@@ -150,10 +396,28 @@ export default function StyleApplySection({
     ) ?? [];
 
   const executionVerification =
-    styleApplyResult?.applyResponse.execution_verification;
+    styleApplyResult?.applyResponse
+      .execution_verification;
+
+  const functionVerification =
+    executionVerification?.function_verification;
+
+  const editedAfterVerification =
+    styleApplyResult !== null &&
+    editableTransformedCode !==
+      styleApplyResult.applyResponse
+        .transformed_code;
+
+  const transformationWasRejected =
+    executionVerification?.status ===
+    "different";
 
   return (
     <div className="space-y-6">
+      {/* ========================================= */}
+      {/* 스타일 적용 입력 영역 */}
+      {/* ========================================= */}
+
       <section className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -178,6 +442,10 @@ export default function StyleApplySection({
         </div>
 
         <div className="p-6">
+          {/* ========================================= */}
+          {/* Step 01: 저장 스타일 선택 */}
+          {/* ========================================= */}
+
           <div className="mb-6">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -198,21 +466,29 @@ export default function StyleApplySection({
             <select
               value={selectedStyleId}
               onChange={(e) => {
-                setSelectedStyleId(e.target.value);
-                setStyleApplyResult(null);
-                setEditableTransformedCode("");
+                setSelectedStyleId(
+                  e.target.value
+                );
+                clearPreviousResult();
               }}
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
             >
-              <option value="">코딩 스타일을 선택하세요</option>
+              <option value="">
+                코딩 스타일을 선택하세요
+              </option>
 
               {savedStyles.map((style) => (
-                <option key={style.id} value={style.id}>
+                <option
+                  key={style.id}
+                  value={style.id}
+                >
                   {style.name}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* 선택한 스타일 상세 정보 */}
 
           {selectedStyle && (
             <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -245,19 +521,22 @@ export default function StyleApplySection({
                   </p>
 
                   <div className="flex flex-wrap gap-2">
-                    {selectedStyle.syntax_tags.length === 0 ? (
+                    {selectedStyle.syntax_tags.length ===
+                    0 ? (
                       <span className="text-xs text-slate-400">
                         저장된 문법 태그가 없습니다.
                       </span>
                     ) : (
-                      selectedStyle.syntax_tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
-                        >
-                          {tag.tag}
-                        </span>
-                      ))
+                      selectedStyle.syntax_tags.map(
+                        (tag, idx) => (
+                          <span
+                            key={idx}
+                            className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                          >
+                            {tag.tag}
+                          </span>
+                        )
+                      )
                     )}
                   </div>
                 </div>
@@ -268,25 +547,32 @@ export default function StyleApplySection({
                   </p>
 
                   <div className="flex flex-wrap gap-2">
-                    {selectedStyle.concept_tags.length === 0 ? (
+                    {selectedStyle.concept_tags.length ===
+                    0 ? (
                       <span className="text-xs text-slate-400">
                         저장된 개념 태그가 없습니다.
                       </span>
                     ) : (
-                      selectedStyle.concept_tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700"
-                        >
-                          {tag.tag}
-                        </span>
-                      ))
+                      selectedStyle.concept_tags.map(
+                        (tag, idx) => (
+                          <span
+                            key={idx}
+                            className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700"
+                          >
+                            {tag.tag}
+                          </span>
+                        )
+                      )
                     )}
                   </div>
                 </div>
               </div>
             </div>
           )}
+
+          {/* ========================================= */}
+          {/* Step 02: 코드 입력 */}
+          {/* ========================================= */}
 
           <div>
             <div className="mb-3">
@@ -299,24 +585,391 @@ export default function StyleApplySection({
               </h3>
 
               <p className="mt-1 text-sm text-slate-500">
-                변환할 Python 코드를 입력한 뒤 스타일 적용을 실행해 주세요.
+                변환할 Python 코드를 입력해주세요.
               </p>
             </div>
 
-            <CodeEditor code={targetCode} setCode={setTargetCode} />
+            <CodeEditor
+              code={targetCode}
+              setCode={(value) => {
+                setTargetCode(value);
+                clearPreviousResult();
+              }}
+            />
           </div>
+
+          {/* ========================================= */}
+          {/* Step 03: 함수 반환값 검증 */}
+          {/* ========================================= */}
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Step 03 · Optional
+                </p>
+
+                <h3 className="mt-1 text-base font-semibold text-slate-900">
+                  함수 반환값 검증
+                </h3>
+
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  함수에 같은 값을 넣어 실행한 뒤,
+                  스타일 적용 전후의 결과가 같은지
+                  확인합니다.
+                </p>
+              </div>
+
+              <label className="flex shrink-0 cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={useFunctionTests}
+                  onChange={(e) => {
+                    setUseFunctionTests(
+                      e.target.checked
+                    );
+                    setFunctionInputError("");
+                    clearPreviousResult();
+                  }}
+                  disabled={styleApplyLoading}
+                  className="h-4 w-4 accent-slate-900"
+                />
+
+                <span className="text-sm font-semibold text-slate-800">
+                  함수 검증 사용
+                </span>
+              </label>
+            </div>
+
+            {!useFunctionTests ? (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-sm leading-relaxed text-slate-600">
+                  함수 검증을 사용하지 않으면
+                  기존처럼 코드의 실행 출력과
+                  종료 상태만 비교합니다.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* 함수 테스트 사용 안내 */}
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-800">
+                    함수 테스트 입력 방법
+                  </p>
+
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    코드에 작성된 함수 이름과
+                    함수에 넣을 값을 입력해주세요.
+                    값을 넣는 방식은 두 가지이며,
+                    필요한 방식만 사용하시면 됩니다.
+                  </p>
+
+                  <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
+                    <p>
+                      <span className="font-semibold text-slate-800">
+                        순서대로 넣을 값:
+                      </span>{" "}
+                      함수에 값을 차례대로 전달합니다.
+                    </p>
+
+                    <p>
+                      <span className="font-semibold text-slate-800">
+                        이름을 지정해 넣을 값:
+                      </span>{" "}
+                      함수에서 사용하는 이름을
+                      직접 지정하여 값을 전달합니다.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 여러 함수 테스트 입력 */}
+
+                {functionDrafts.map(
+                  (draft, index) => (
+                    <div
+                      key={draft.id}
+                      className="rounded-xl border border-slate-200 bg-white p-4"
+                    >
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-slate-900">
+                          함수 테스트 {index + 1}
+                        </h4>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeFunctionDraft(
+                              draft.id
+                            )
+                          }
+                          disabled={
+                            styleApplyLoading ||
+                            functionDrafts.length <=
+                              1
+                          }
+                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:text-slate-300"
+                        >
+                          삭제
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        {/* 함수 이름 */}
+
+                        <div>
+                          <label
+                            htmlFor={`function-name-${draft.id}`}
+                            className="mb-2 block text-xs font-semibold text-slate-700"
+                          >
+                            함수 이름
+                          </label>
+
+                          <input
+                            id={`function-name-${draft.id}`}
+                            type="text"
+                            value={
+                              draft.functionName
+                            }
+                            onChange={(e) =>
+                              updateFunctionDraft(
+                                draft.id,
+                                "functionName",
+                                e.target.value
+                              )
+                            }
+                            disabled={
+                              styleApplyLoading
+                            }
+                            placeholder="greet"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+
+                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            코드에 정의된 함수 이름을
+                            그대로 입력해주세요.
+                          </p>
+                        </div>
+
+                        {/* 순서대로 넣을 값 */}
+
+                        <div>
+                          <label
+                            htmlFor={`function-args-${draft.id}`}
+                            className="mb-2 block text-xs font-semibold text-slate-700"
+                          >
+                            순서대로 넣을 값
+                          </label>
+
+                          <input
+                            id={`function-args-${draft.id}`}
+                            type="text"
+                            value={draft.argsText}
+                            onChange={(e) =>
+                              updateFunctionDraft(
+                                draft.id,
+                                "argsText",
+                                e.target.value
+                              )
+                            }
+                            disabled={
+                              styleApplyLoading
+                            }
+                            placeholder='["Jin"]'
+                            spellCheck={false}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+
+                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            예: [5] 또는
+                            {" "}
+                            [&quot;Jin&quot;]
+                            {" "}
+                            / 여러 값은 [5, 10]처럼
+                            입력합니다. 사용하지 않으면
+                            []로 두세요.
+                          </p>
+                        </div>
+
+                        {/* 이름을 지정해 넣을 값 */}
+
+                        <div className="lg:col-span-2">
+                          <label
+                            htmlFor={`function-kwargs-${draft.id}`}
+                            className="mb-2 block text-xs font-semibold text-slate-700"
+                          >
+                            이름을 지정해 넣을 값
+                            <span className="ml-2 font-normal text-slate-400">
+                              (선택)
+                            </span>
+                          </label>
+
+                          <input
+                            id={`function-kwargs-${draft.id}`}
+                            type="text"
+                            value={
+                              draft.kwargsText
+                            }
+                            onChange={(e) =>
+                              updateFunctionDraft(
+                                draft.id,
+                                "kwargsText",
+                                e.target.value
+                              )
+                            }
+                            disabled={
+                              styleApplyLoading
+                            }
+                            placeholder='{"punctuation": "?"}'
+                            spellCheck={false}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                          />
+
+                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            함수의 매개변수 이름을
+                            지정하여 값을 전달합니다.
+                            사용하지 않는 경우
+                            {" "}
+                            <code className="rounded bg-slate-100 px-1 font-mono font-semibold text-slate-700">
+                              {"{}"}
+                            </code>
+                            {" "}
+                            그대로 두시면 됩니다.
+                          </p>
+
+                          {/* 실제 Python 코드 예시 */}
+
+                          <div className="mt-4 overflow-hidden rounded-xl border border-blue-100 bg-slate-50">
+                            <div className="border-b border-blue-100 px-4 py-3">
+                              <p className="text-xs font-semibold text-blue-800">
+                                예시 코드로 이해하기
+                              </p>
+
+                              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                                아래 함수는 이름과 문장
+                                끝에 붙일 기호를
+                                전달받습니다.
+                              </p>
+                            </div>
+
+                            <div className="p-4">
+                              <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-800">
+                                {KEYWORD_ARGUMENT_EXAMPLE}
+                              </pre>
+
+                              <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-xs leading-relaxed text-slate-600">
+                                <p>
+                                  <span className="font-semibold text-slate-800">
+                                    함수 이름:
+                                  </span>{" "}
+                                  <code className="font-mono text-slate-900">
+                                    greet
+                                  </code>
+                                </p>
+
+                                <p>
+                                  <span className="font-semibold text-slate-800">
+                                    순서대로 넣을 값:
+                                  </span>{" "}
+                                  <code className="font-mono text-slate-900">
+                                    [&quot;Jin&quot;]
+                                  </code>
+                                </p>
+
+                                <p>
+                                  <span className="font-semibold text-slate-800">
+                                    이름을 지정해 넣을 값:
+                                  </span>{" "}
+                                  <code className="font-mono text-slate-900">
+                                    {'{"punctuation": "?"}'}
+                                  </code>
+                                </p>
+
+                                <p className="pt-1 text-slate-500">
+                                  위와 같이 입력하면
+                                  {" "}
+                                  <code className="font-mono">
+                                    greet(&quot;Jin&quot;,
+                                    punctuation=&quot;?&quot;)
+                                  </code>
+                                  {" "}
+                                  호출 결과를 비교합니다.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* 테스트 추가 버튼 */}
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={addFunctionDraft}
+                    disabled={
+                      styleApplyLoading ||
+                      functionDrafts.length >=
+                        MAX_FUNCTION_CASES
+                    }
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    + 테스트 추가
+                  </button>
+
+                  <span className="text-xs text-slate-500">
+                    {functionDrafts.length}
+                    {" / "}
+                    {MAX_FUNCTION_CASES}개
+                  </span>
+                </div>
+
+                {/* 입력 오류 안내 */}
+
+                {functionInputError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                  >
+                    {functionInputError}
+                  </p>
+                )}
+
+                <p className="text-xs leading-relaxed text-slate-500">
+                  입력한 함수와 값은 실제 Python
+                  코드에서 실행됩니다. 검증 결과는
+                  입력한 값에 대해서만 확인되며,
+                  현재 실행 환경은 완전한 보안
+                  샌드박스가 아닙니다.
+                  신뢰할 수 있는 코드만 사용해주세요.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 스타일 적용 버튼 */}
 
           <div className="mt-5 flex justify-end">
             <button
-              onClick={handleApplyStyle}
+              type="button"
+              onClick={submitStyleApplication}
               disabled={styleApplyLoading}
               className="inline-flex min-w-[180px] items-center justify-center whitespace-nowrap rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              {styleApplyLoading ? "변환 중..." : "스타일 적용하기"}
+              {styleApplyLoading
+                ? "변환 중..."
+                : "스타일 적용하기"}
             </button>
           </div>
         </div>
       </section>
+
+      {/* ========================================= */}
+      {/* 스타일 적용 결과 */}
+      {/* ========================================= */}
 
       {styleApplyResult && (
         <section className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
@@ -328,7 +981,7 @@ export default function StyleApplySection({
             <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">
-                  Before & After
+                  Before &amp; After
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
@@ -340,13 +993,37 @@ export default function StyleApplySection({
               </div>
 
               <p className="text-xs text-slate-400">
-                변환 전 코드와 적용 후 코드를 비교할 수 있습니다.
+                변환 전 코드와 적용 후 코드를
+                비교할 수 있습니다.
               </p>
             </div>
           </div>
 
           <div className="p-6">
+            {/* 검증 이후 직접 수정된 경우 */}
+
+            {editedAfterVerification && (
+              <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  검증 이후 코드가 수정되었습니다.
+                </p>
+
+                <p className="mt-1 text-sm leading-relaxed text-amber-800">
+                  아래 실행 검증 결과는 서버에서
+                  변환한 당시 코드에 대한 결과입니다.
+                  직접 수정한 코드에는 적용되지
+                  않으므로 다시 검증해야 합니다.
+                </p>
+              </div>
+            )}
+
+            {/* ========================================= */}
+            {/* Before / After */}
+            {/* ========================================= */}
+
             <div className="mb-6 grid grid-cols-1 gap-5 2xl:grid-cols-2">
+              {/* 원본 코드 */}
+
               <div className="min-w-0">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
@@ -366,7 +1043,10 @@ export default function StyleApplySection({
 
                 <CodeViewer
                   title="Original Code"
-                  code={styleApplyResult.applyResponse.original_code}
+                  code={
+                    styleApplyResult.applyResponse
+                      .original_code
+                  }
                   readOnly={true}
                 />
 
@@ -383,12 +1063,16 @@ export default function StyleApplySection({
 
                   <div className="min-h-[110px] px-4 py-4">
                     <ExecutionOutput
-                      result={executionVerification?.original}
+                      result={
+                        executionVerification?.original
+                      }
                       emptyMessage="변환 전 코드의 실행 결과를 확인할 수 없습니다."
                     />
                   </div>
                 </div>
               </div>
+
+              {/* 변환 후 코드 */}
 
               <div className="min-w-0">
                 <div className="mb-3 flex items-center gap-2">
@@ -411,7 +1095,9 @@ export default function StyleApplySection({
                   title="Transformed Code"
                   code={editableTransformedCode}
                   readOnly={false}
-                  onChange={setEditableTransformedCode}
+                  onChange={
+                    setEditableTransformedCode
+                  }
                 />
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -427,51 +1113,173 @@ export default function StyleApplySection({
 
                   <div className="min-h-[110px] px-4 py-4">
                     <ExecutionOutput
-                      result={executionVerification?.transformed}
+                      result={
+                        executionVerification?.transformed
+                      }
                       emptyMessage="스타일 적용 후 코드의 실행 결과를 확인할 수 없습니다."
                     />
                   </div>
                 </div>
+
+                {transformationWasRejected && (
+                  <p className="mt-2 text-xs leading-relaxed text-amber-700">
+                    위 실행 결과는 원본 복원 전에
+                    시도한 변환 코드의 결과입니다.
+                    코드 편집기에는 복원된 원본이
+                    표시됩니다.
+                  </p>
+                )}
               </div>
             </div>
 
+            {/* ========================================= */}
+            {/* 실행 검증 종합 결과 */}
+            {/* ========================================= */}
+
             {executionVerification && (
               <div
-                className={`mb-6 rounded-xl border p-4 ${
-                  executionVerification.status === "equivalent"
-                    ? "border-green-200 bg-green-50"
-                    : executionVerification.status === "different"
-                    ? "border-red-200 bg-red-50"
-                    : "border-amber-200 bg-amber-50"
-                }`}
+                className={`mb-6 rounded-xl border p-4 ${getStatusClass(
+                  executionVerification.status
+                )}`}
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <p
-                    className={`text-sm font-semibold ${
-                      executionVerification.status === "equivalent"
-                        ? "text-green-800"
-                        : executionVerification.status === "different"
-                        ? "text-red-800"
-                        : "text-amber-800"
-                    }`}
-                  >
-                    {executionVerification.status === "equivalent"
-                      ? "✓ 변환 전·후 실행 결과 동일"
-                      : executionVerification.status === "different"
+                  <p className="text-sm font-semibold">
+                    {executionVerification.status ===
+                    "equivalent"
+                      ? "변환 전·후 실행 결과 일치"
+                      : executionVerification.status ===
+                        "different"
                       ? "실행 결과 불일치 · 원본 코드 유지"
-                      : "△ 실행 결과 자동 검증 불가"}
+                      : "실행 결과 검증 불가"}
                   </p>
 
-                  <span className="text-xs font-medium text-slate-500">
-                    검증 방식: 실제 Python 실행
+                  <span className="text-xs font-medium">
+                    {executionVerification.source ===
+                    "runtime+function_tests"
+                      ? "Python 실행 + 함수 반환값 검증"
+                      : "실제 Python 실행"}
                   </span>
                 </div>
 
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                <p className="mt-2 text-sm leading-relaxed">
                   {executionVerification.message}
                 </p>
               </div>
             )}
+
+            {/* ========================================= */}
+            {/* 함수 반환값 검증 상세 결과 */}
+            {/* ========================================= */}
+
+            {functionVerification && (
+              <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        Function Verification
+                      </p>
+
+                      <h3 className="mt-1 text-base font-bold text-slate-900">
+                        함수 반환값 검증 결과
+                      </h3>
+                    </div>
+
+                    <span
+                      className={`self-start rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
+                        functionVerification.status
+                      )}`}
+                    >
+                      {getStatusLabel(
+                        functionVerification.status
+                      )}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    동일한 입력값으로 함수를 각각
+                    실행하여 반환값, 자료형 및
+                    출력 결과를 비교했습니다.
+                  </p>
+                </div>
+
+                <div className="space-y-3 p-5">
+                  {functionVerification.cases.map(
+                    (testCase, index) => (
+                      <div
+                        key={`${testCase.function}-${index}`}
+                        className="rounded-lg border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-slate-400">
+                              Test {index + 1}
+                            </p>
+
+                            <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
+                              {testCase.function}()
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
+                              testCase.status
+                            )}`}
+                          >
+                            {getStatusLabel(
+                              testCase.status
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">
+                              순서대로 넣은 값
+                            </p>
+
+                            <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-700">
+                              {JSON.stringify(
+                                testCase.args
+                              )}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">
+                              이름을 지정해 넣은 값
+                            </p>
+
+                            <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-700">
+                              {JSON.stringify(
+                                testCase.kwargs
+                              )}
+                            </pre>
+                          </div>
+                        </div>
+
+                        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                          {testCase.message}
+                        </p>
+                      </div>
+                    )
+                  )}
+
+                  <p className="text-xs leading-relaxed text-slate-500">
+                    현재 백엔드는 반환값의 비교
+                    판정만 제공합니다.
+                    변환 전후의 실제 반환값
+                    상세 정보는 별도 응답 확장이
+                    필요합니다. 이 검증은
+                    지정한 테스트 입력에만 적용됩니다.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================= */}
+            {/* 변환 상세 정보 */}
+            {/* ========================================= */}
 
             <div className="border-t border-slate-200 pt-6">
               <div className="mb-4">
@@ -485,12 +1293,16 @@ export default function StyleApplySection({
               </div>
 
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {/* 적용 규칙 */}
+
                 <div className="rounded-xl border border-green-200 bg-green-50 p-4">
                   <h4 className="mb-3 font-semibold text-green-800">
                     실제 적용된 변환 규칙
                   </h4>
 
-                  {styleApplyResult.applyResponse.applied_rules.length === 0 ? (
+                  {styleApplyResult.applyResponse
+                    .applied_rules.length ===
+                  0 ? (
                     <p className="text-sm leading-relaxed text-slate-600">
                       적용된 변환 규칙이 없습니다.
                     </p>
@@ -498,19 +1310,25 @@ export default function StyleApplySection({
                     <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-700">
                       {styleApplyResult.applyResponse.applied_rules.map(
                         (rule, idx) => (
-                          <li key={idx}>{rule}</li>
+                          <li key={idx}>
+                            {rule}
+                          </li>
                         )
                       )}
                     </ul>
                   )}
                 </div>
 
+                {/* 참고 사항 */}
+
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <h4 className="mb-3 font-semibold text-amber-800">
                     참고 사항
                   </h4>
 
-                  {styleApplyResult.applyResponse.warnings.length === 0 ? (
+                  {styleApplyResult.applyResponse
+                    .warnings.length ===
+                  0 ? (
                     <p className="text-sm leading-relaxed text-slate-600">
                       별도의 참고 사항이 없습니다.
                     </p>
@@ -518,13 +1336,19 @@ export default function StyleApplySection({
                     <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-700">
                       {styleApplyResult.applyResponse.warnings.map(
                         (warning, idx) => (
-                          <li key={idx}>{warning}</li>
+                          <li key={idx}>
+                            {warning}
+                          </li>
                         )
                       )}
                     </ul>
                   )}
                 </div>
               </div>
+
+              {/* ========================================= */}
+              {/* 최종 스타일 태그 분석 */}
+              {/* ========================================= */}
 
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="mb-4">
@@ -537,12 +1361,16 @@ export default function StyleApplySection({
                   </h4>
 
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    스타일 적용 후 코드를 다시 분석하여 저장된 스타일 태그가
-                    실제 코드에 반영되었는지 확인한 결과입니다.
+                    스타일 적용 후 코드를 다시
+                    분석하여 저장된 스타일 태그가
+                    실제 코드에 반영되었는지
+                    확인한 결과입니다.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {/* 적용 확인 */}
+
                   <div className="rounded-xl border border-green-200 bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <h5 className="font-semibold text-green-800">
@@ -556,53 +1384,64 @@ export default function StyleApplySection({
                       </span>
                     </div>
 
-                    {appliedSyntaxTags.length === 0 &&
-                    appliedConceptTags.length === 0 ? (
+                    {appliedSyntaxTags.length ===
+                      0 &&
+                    appliedConceptTags.length ===
+                      0 ? (
                       <p className="text-sm leading-relaxed text-slate-500">
-                        최종 코드에서 확인된 저장 스타일 태그가 없습니다.
+                        최종 코드에서 확인된 저장
+                        스타일 태그가 없습니다.
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {appliedSyntaxTags.length > 0 && (
+                        {appliedSyntaxTags.length >
+                          0 && (
                           <div>
                             <p className="mb-2 text-xs font-semibold text-slate-500">
                               문법 태그
                             </p>
 
                             <div className="flex flex-wrap gap-2">
-                              {appliedSyntaxTags.map((tag, idx) => (
-                                <span
-                                  key={`applied-syntax-${idx}`}
-                                  className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
-                                >
-                                  {tag.tag}
-                                </span>
-                              ))}
+                              {appliedSyntaxTags.map(
+                                (tag, idx) => (
+                                  <span
+                                    key={`applied-syntax-${idx}`}
+                                    className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"
+                                  >
+                                    {tag.tag}
+                                  </span>
+                                )
+                              )}
                             </div>
                           </div>
                         )}
 
-                        {appliedConceptTags.length > 0 && (
+                        {appliedConceptTags.length >
+                          0 && (
                           <div>
                             <p className="mb-2 text-xs font-semibold text-slate-500">
                               개념 태그
                             </p>
 
                             <div className="flex flex-wrap gap-2">
-                              {appliedConceptTags.map((tag, idx) => (
-                                <span
-                                  key={`applied-concept-${idx}`}
-                                  className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700"
-                                >
-                                  {tag.tag}
-                                </span>
-                              ))}
+                              {appliedConceptTags.map(
+                                (tag, idx) => (
+                                  <span
+                                    key={`applied-concept-${idx}`}
+                                    className="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700"
+                                  >
+                                    {tag.tag}
+                                  </span>
+                                )
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
+
+                  {/* 미적용 태그 */}
 
                   <div className="rounded-xl border border-amber-200 bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
@@ -617,15 +1456,19 @@ export default function StyleApplySection({
                       </span>
                     </div>
 
-                    {styleApplyResult.missingSyntaxTags.length === 0 &&
-                    styleApplyResult.missingConceptTags.length === 0 ? (
+                    {styleApplyResult.missingSyntaxTags.length ===
+                      0 &&
+                    styleApplyResult.missingConceptTags.length ===
+                      0 ? (
                       <p className="text-sm leading-relaxed text-slate-500">
-                        저장 스타일의 모든 대상 태그가 최종 코드에서
+                        저장 스타일의 모든 대상
+                        태그가 최종 코드에서
                         확인되었습니다.
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {styleApplyResult.missingSyntaxTags.length > 0 && (
+                        {styleApplyResult.missingSyntaxTags.length >
+                          0 && (
                           <div>
                             <p className="mb-2 text-xs font-semibold text-slate-500">
                               문법 태그
@@ -646,7 +1489,8 @@ export default function StyleApplySection({
                           </div>
                         )}
 
-                        {styleApplyResult.missingConceptTags.length > 0 && (
+                        {styleApplyResult.missingConceptTags.length >
+                          0 && (
                           <div>
                             <p className="mb-2 text-xs font-semibold text-slate-500">
                               개념 태그

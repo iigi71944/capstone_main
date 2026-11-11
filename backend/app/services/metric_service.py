@@ -384,7 +384,6 @@ class _AggregationPatternVisitor(ast.NodeVisitor):
         return
 
 
-
 def _loaded_names(node: ast.AST) -> set[str]:
     return {
         child.id
@@ -424,9 +423,7 @@ def _iter_branches(statements: list[ast.stmt]):
 
 
 class _SelectionPatternVisitor(ast.NodeVisitor):
-    """
-    ?? ??, ???, ?? ??/?? ??? ??? ?????.
-    """
+    """필터링과 검색·탐색 패턴을 식별합니다."""
 
     def __init__(self):
         self.filter_count = 0
@@ -673,6 +670,7 @@ def calculate_metrics(tree: ast.AST) -> dict:
     range_call_count = 0
     sum_call_count = 0
     sorted_call_count = 0
+    sort_method_call_count = 0
     enumerate_call_count = 0
     zip_call_count = 0
     open_call_count = 0
@@ -784,8 +782,12 @@ def calculate_metrics(tree: ast.AST) -> dict:
 
                 if receiver_type == "list" and method_name in LIST_METHODS:
                     list_method_call_count += 1
+
                     if method_name == "append":
                         append_call_count += 1
+
+                    if method_name == "sort":
+                        sort_method_call_count += 1
 
                 if receiver_type == "dict" and method_name in DICT_METHODS:
                     dict_method_call_count += 1
@@ -945,6 +947,7 @@ def calculate_metrics(tree: ast.AST) -> dict:
         "range_call_count": range_call_count,
         "sum_call_count": sum_call_count,
         "sorted_call_count": sorted_call_count,
+        "sort_method_call_count": sort_method_call_count,
         "enumerate_call_count": enumerate_call_count,
         "zip_call_count": zip_call_count,
         "open_call_count": open_call_count,

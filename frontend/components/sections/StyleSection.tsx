@@ -1,4 +1,8 @@
-import { CodingStyle } from "../../types/analysis";
+
+"use client";
+
+import { useState } from "react";
+import type { CodingStyle } from "../../types/analysis";
 
 interface AuthUser {
   email: string;
@@ -33,6 +37,30 @@ export default function StyleSection({
   handleDeleteStyle,
   handleShareStyle,
 }: StyleSectionProps) {
+  // 삭제 확인을 기다리는 스타일
+  const [deleteTarget, setDeleteTarget] =
+    useState<SharedCodingStyle | null>(null);
+
+  // 삭제 버튼을 누르면 확인 팝업만 표시합니다.
+  const openDeleteModal = (style: SharedCodingStyle) => {
+    setDeleteTarget(style);
+  };
+
+  // 아니오: 삭제하지 않고 팝업을 닫습니다.
+  const cancelDelete = () => {
+    setDeleteTarget(null);
+  };
+
+  // 삭제: 기존 삭제 함수를 실행합니다.
+  const confirmDelete = () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    handleDeleteStyle(deleteTarget.id);
+    setDeleteTarget(null);
+  };
+
   return (
     <div className="bg-white border border-slate-300 rounded-2xl p-6 shadow-sm">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-5">
@@ -46,7 +74,10 @@ export default function StyleSection({
           </p>
 
           <p className="text-sm text-slate-500 mt-2">
-            현재 계정: {currentUser ? currentUser.email : "비로그인 임시 저장소"}
+            현재 계정:{" "}
+            {currentUser
+              ? currentUser.email
+              : "비로그인 임시 저장소"}
           </p>
         </div>
 
@@ -100,6 +131,7 @@ export default function StyleSection({
 
                   <div className="flex shrink-0 gap-2">
                     <button
+                      type="button"
                       onClick={() => handleOpenShareModal(style)}
                       className="text-xs px-3 py-1 rounded-lg border border-blue-200 text-blue-700 bg-white hover:bg-blue-50"
                     >
@@ -107,7 +139,8 @@ export default function StyleSection({
                     </button>
 
                     <button
-                      onClick={() => handleDeleteStyle(style.id)}
+                      type="button"
+                      onClick={() => openDeleteModal(style)}
                       className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 bg-white hover:bg-red-50"
                     >
                       삭제
@@ -115,7 +148,24 @@ export default function StyleSection({
                   </div>
                 </div>
 
-                <p className="text-sm text-slate-700 leading-relaxed mb-4 line-clamp-3">
+                {/*
+                  코딩 스타일 설명 영역
+
+                  변경 전:
+                  line-clamp-3
+
+                  변경 후:
+                  max-h-24 overflow-y-auto
+
+                  내용이 길면 이 영역 안에서만
+                  세로 스크롤이 가능해집니다.
+                  저장된 설명은 생략하지 않습니다.
+                */}
+                <p
+                  tabIndex={0}
+                  aria-label={`${style.name} 코딩 스타일 설명`}
+                  className="text-sm text-slate-700 leading-relaxed mb-4 max-h-24 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words pr-2"
+                >
                   {style.description}
                 </p>
 
@@ -170,10 +220,19 @@ export default function StyleSection({
         </div>
       )}
 
+      {/* 기존 코딩 스타일 공유 팝업 */}
       {shareModalStyle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-300 p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-modal-title"
+            className="w-full max-w-md rounded-2xl bg-white border border-slate-300 p-5 shadow-xl"
+          >
+            <h3
+              id="share-modal-title"
+              className="text-lg font-semibold text-slate-900 mb-2"
+            >
               코딩 스타일 공유
             </h3>
 
@@ -187,20 +246,24 @@ export default function StyleSection({
               </p>
 
               <p className="text-xs text-slate-500 mt-1">
-                현재 공유 가능 계정: test001@gmail.com, test002@gmail.com
+                현재 공유 가능 계정: test001@gmail.com,
+                test002@gmail.com
               </p>
             </div>
 
             <input
               type="email"
               value={shareTargetEmail}
-              onChange={(e) => setShareTargetEmail(e.target.value)}
+              onChange={(e) =>
+                setShareTargetEmail(e.target.value)
+              }
               placeholder="공유할 계정 이메일"
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-500 mb-4"
             />
 
             <div className="flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setShareModalStyle(null);
                   setShareTargetEmail("");
@@ -211,10 +274,71 @@ export default function StyleSection({
               </button>
 
               <button
+                type="button"
                 onClick={handleShareStyle}
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-700"
               >
                 공유하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 기존 코딩 스타일 삭제 확인 팝업 */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            aria-describedby="delete-modal-description"
+            className="w-full max-w-md rounded-2xl border border-slate-300 bg-white p-6 shadow-xl"
+          >
+            <h3
+              id="delete-modal-title"
+              className="text-lg font-semibold text-slate-900"
+            >
+              코딩 스타일 삭제
+            </h3>
+
+            <p className="mt-4 text-base font-semibold text-slate-900">
+              정말로 삭제하시겠습니까?
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-medium text-slate-500">
+                삭제할 코딩 스타일
+              </p>
+
+              <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                {deleteTarget.name}
+              </p>
+            </div>
+
+            <p
+              id="delete-modal-description"
+              className="mt-4 text-sm leading-relaxed text-slate-600"
+            >
+              선택한 코딩 스타일이 삭제됩니다.
+              삭제 후에는 복구할 수 없습니다.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={cancelDelete}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                아니오
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300"
+              >
+                삭제
               </button>
             </div>
           </div>

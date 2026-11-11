@@ -141,7 +141,11 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     print_call_count = metrics.get("print_call_count", 0)
     open_call_count = metrics.get("open_call_count", 0)
     sum_call_count = metrics.get("sum_call_count", 0)
+
+    # 정렬 함수와 리스트 정렬 메서드를 구분해 가져옵니다.
     sorted_call_count = metrics.get("sorted_call_count", 0)
+    sort_method_call_count = metrics.get("sort_method_call_count", 0)
+
     enumerate_call_count = metrics.get("enumerate_call_count", 0)
     zip_call_count = metrics.get("zip_call_count", 0)
     len_call_count = metrics.get("len_call_count", 0)
@@ -242,7 +246,15 @@ def extract_concept_tags(metrics: dict) -> list[dict]:
     if metrics.get("search_pattern_count", 0) >= 1:
         concept_tags.append(make_concept_tag("검색/탐색 중심 구조", 0.8))
 
-    if sorted_call_count >= 1:
+    # sorted()와 리스트의 sort()는 정렬 방식은 다르지만
+    # 모두 정렬 중심 코드라는 공통 개념을 가집니다.
+    #
+    # 구체적인 정렬 방식 차이는 metric_service의
+    # sorted_call_count / sort_method_call_count로 비교합니다.
+    #
+    # 자료형을 알 수 없는 객체의 sort()는
+    # metric_service에서 sort_method_call_count에 포함하지 않습니다.
+    if sorted_call_count >= 1 or sort_method_call_count >= 1:
         concept_tags.append(make_concept_tag("정렬 중심 구조", 1.0))
 
     if assert_count >= 1 or raise_count >= 1 or (if_count >= 1 and bool_op_count >= 1):

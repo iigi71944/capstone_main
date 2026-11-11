@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import {
   AnalysisResponse,
   CodingStyle,
   ConceptTag,
+  FunctionTestCase,
   StyleApplyResponse,
   SyntaxTag,
 } from "../types/analysis";
@@ -52,11 +54,13 @@ const STORAGE_KEY_PREFIX = "capstone_saved_coding_styles";
 const CURRENT_USER_STORAGE_KEY = "capstone_current_user";
 const MIGRATION_BACKUP_SUFFIX = "_backup_before_tag_migration_v1";
 
-// 이전 버전에서 개선 진단으로 취급했지만 실제로는 인덱스 반복을 의미했던 태그입니다.
+// 이전 버전에서 개선 진단으로 취급했지만
+// 실제로는 인덱스 반복을 의미했던 태그입니다.
 const LEGACY_INDEX_LOOP_TAG = "반복 인덱스 개선 가능 구조";
 const INDEX_LOOP_STYLE_TAG = "인덱스 기반 반복 사용";
 
-// 코딩 스타일의 특징이 아니라 개선 진단에 해당하므로 저장 스타일에서 제외합니다.
+// 코딩 스타일의 특징이 아니라 개선 진단에 해당하므로
+// 저장 스타일에서 제외합니다.
 const REMOVED_DIAGNOSTIC_TAGS = new Set([
   "간결성 저하 가능 구조",
   "구조화 필요 코드",
@@ -85,6 +89,7 @@ const isMenuType = (value: string): value is MenuType => {
 
 /**
  * 기존 저장 스타일의 태그를 현재 체계로 옮깁니다.
+ *
  * 이름, ID, 작성일, 공유 정보 및 기타 데이터는 그대로 유지합니다.
  * 새로 저장되는 코드는 이전 진단 태그를 생성하지 않습니다.
  */
@@ -103,10 +108,12 @@ const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
     return style;
   }
 
-  // 현재 스타일 태그가 이미 존재하면 이전 진단 태그로 덮어쓰지 않습니다.
+  // 현재 스타일 태그가 이미 존재하면
+  // 이전 진단 태그로 덮어쓰지 않습니다.
   const hasCurrentIndexTag = originalTags.some(
     (item) => item?.tag === INDEX_LOOP_STYLE_TAG
   );
+
   const seenTags = new Set<string>();
   const migratedTags: ConceptTag[] = [];
 
@@ -120,7 +127,10 @@ const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
     }
 
     if (item.tag === LEGACY_INDEX_LOOP_TAG) {
-      if (hasCurrentIndexTag || seenTags.has(INDEX_LOOP_STYLE_TAG)) {
+      if (
+        hasCurrentIndexTag ||
+        seenTags.has(INDEX_LOOP_STYLE_TAG)
+      ) {
         continue;
       }
 
@@ -129,6 +139,7 @@ const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
         count: item.count,
         score: item.score,
       });
+
       seenTags.add(INDEX_LOOP_STYLE_TAG);
       continue;
     }
@@ -139,9 +150,11 @@ const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
     }
   }
 
-  // 과거 시스템이 자동 생성한 설명에 남아 있는 진단 태그도 정리합니다.
+  // 과거 시스템이 자동 생성한 설명에 남아 있는
+  // 진단 태그도 정리합니다.
   // 사용자가 직접 작성한 설명은 변경하지 않습니다.
   let migratedDescription = style.description;
+
   if (
     typeof style.description === "string" &&
     style.description.startsWith("이 코딩 스타일은 개념 태그(")
@@ -149,6 +162,7 @@ const migrateSavedStyle = (style: SharedCodingStyle): SharedCodingStyle => {
     const conceptNames =
       migratedTags.map((item) => item.tag).join(", ") ||
       "특정 개념 태그 없음";
+
     const syntaxNames =
       (style.syntax_tags ?? []).map((item) => item.tag).join(", ") ||
       "저장 대상 핵심 문법 태그 없음";
@@ -175,19 +189,27 @@ export default function HomePage() {
             result.append(nums[i])
     return result`);
 
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [result, setResult] =
+    useState<AnalysisResponse | null>(null);
+
   const [loading, setLoading] = useState(false);
 
   const [syntaxSearch, setSyntaxSearch] = useState("");
   const [conceptSearch, setConceptSearch] = useState("");
 
-  const [savedStyles, setSavedStyles] = useState<SharedCodingStyle[]>([]);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [savedStyles, setSavedStyles] =
+    useState<SharedCodingStyle[]>([]);
+
+  const [currentUser, setCurrentUser] =
+    useState<AuthUser | null>(null);
+
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [shareTargetEmail, setShareTargetEmail] = useState("");
+
   const [shareModalStyle, setShareModalStyle] =
     useState<SharedCodingStyle | null>(null);
+
   const [styleName, setStyleName] = useState("");
   const [selectedStyleId, setSelectedStyleId] = useState("");
 
@@ -202,10 +224,14 @@ average = total / len(scores)
 
 print(average)`);
 
-  const [styleApplyLoading, setStyleApplyLoading] = useState(false);
+  const [styleApplyLoading, setStyleApplyLoading] =
+    useState(false);
+
   const [styleApplyResult, setStyleApplyResult] =
     useState<StyleApplyResult | null>(null);
-  const [editableTransformedCode, setEditableTransformedCode] = useState("");
+
+  const [editableTransformedCode, setEditableTransformedCode] =
+    useState("");
 
   useEffect(() => {
     const syncMenuWithHash = () => {
@@ -235,44 +261,68 @@ print(average)`);
 
     try {
       const parsed: unknown = JSON.parse(raw);
+
       if (
         !Array.isArray(parsed) ||
-        !parsed.every((style) => style && typeof style === "object")
+        !parsed.every(
+          (style) => style && typeof style === "object"
+        )
       ) {
-        console.error("저장된 코딩 스타일의 데이터 형식이 올바르지 않습니다.");
+        console.error(
+          "저장된 코딩 스타일의 데이터 형식이 올바르지 않습니다."
+        );
+
         setSavedStyles([]);
         return;
       }
 
       const originalStyles = parsed as SharedCodingStyle[];
       const migratedStyles = originalStyles.map(migrateSavedStyle);
+
       const hasMigration = migratedStyles.some(
         (style, index) => style !== originalStyles[index]
       );
 
       if (hasMigration) {
         try {
-          const backupKey = `${storageKey}${MIGRATION_BACKUP_SUFFIX}`;
+          const backupKey =
+            `${storageKey}${MIGRATION_BACKUP_SUFFIX}`;
+
           if (localStorage.getItem(backupKey) === null) {
             localStorage.setItem(backupKey, raw);
           }
-          localStorage.setItem(storageKey, JSON.stringify(migratedStyles));
+
+          localStorage.setItem(
+            storageKey,
+            JSON.stringify(migratedStyles)
+          );
         } catch (error) {
-          // 저장에 실패하더라도 현재 화면에서는 변환한 스타일을 사용할 수 있습니다.
-          console.error("코딩 스타일 이전 데이터 저장에 실패했습니다:", error);
+          // 저장에 실패하더라도 현재 화면에서는
+          // 변환한 스타일을 사용할 수 있습니다.
+          console.error(
+            "코딩 스타일 이전 데이터 저장에 실패했습니다:",
+            error
+          );
         }
       }
 
       setSavedStyles(migratedStyles);
     } catch (error) {
-      // 복구 가능성을 위해 잘못된 데이터도 임의로 삭제하지 않습니다.
-      console.error("저장된 코딩 스타일을 읽을 수 없습니다:", error);
+      // 복구 가능성을 위해 잘못된 데이터도
+      // 임의로 삭제하지 않습니다.
+      console.error(
+        "저장된 코딩 스타일을 읽을 수 없습니다:",
+        error
+      );
+
       setSavedStyles([]);
     }
   };
 
   useEffect(() => {
-    const rawUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+    const rawUser = localStorage.getItem(
+      CURRENT_USER_STORAGE_KEY
+    );
 
     if (!rawUser) {
       loadStylesByEmail(GUEST_EMAIL);
@@ -281,6 +331,7 @@ print(average)`);
 
     try {
       const parsedUser = JSON.parse(rawUser) as AuthUser;
+
       setCurrentUser(parsedUser);
       loadStylesByEmail(parsedUser.email);
     } catch {
@@ -289,18 +340,26 @@ print(average)`);
     }
   }, []);
 
-  const saveStylesToStorage = (styles: SharedCodingStyle[]) => {
+  const saveStylesToStorage = (
+    styles: SharedCodingStyle[]
+  ) => {
     const email = currentUser?.email || GUEST_EMAIL;
     const storageKey = getStyleStorageKey(email);
 
     setSavedStyles(styles);
-    localStorage.setItem(storageKey, JSON.stringify(styles));
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(styles)
+    );
   };
 
   const filteredSyntaxTags = useMemo(() => {
     const keyword = syntaxSearch.trim().toLowerCase();
 
-    if (!keyword) return syntaxTagDocs;
+    if (!keyword) {
+      return syntaxTagDocs;
+    }
 
     return syntaxTagDocs.filter(
       (item) =>
@@ -312,7 +371,9 @@ print(average)`);
   const filteredConceptTags = useMemo(() => {
     const keyword = conceptSearch.trim().toLowerCase();
 
-    if (!keyword) return conceptTagDocs;
+    if (!keyword) {
+      return conceptTagDocs;
+    }
 
     return conceptTagDocs.filter(
       (item) =>
@@ -322,7 +383,10 @@ print(average)`);
   }, [conceptSearch]);
 
   const createStyleId = () => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    if (
+      typeof crypto !== "undefined" &&
+      "randomUUID" in crypto
+    ) {
       return crypto.randomUUID();
     }
 
@@ -344,7 +408,10 @@ print(average)`);
       setResult(data);
     } catch (error) {
       console.error("분석 오류:", error);
-      alert("백엔드 연결 또는 분석 중 오류가 발생했습니다.");
+
+      alert(
+        "백엔드 연결 또는 분석 중 오류가 발생했습니다."
+      );
     } finally {
       setLoading(false);
     }
@@ -357,24 +424,32 @@ print(average)`);
     }
 
     const name =
-      styleName.trim() || `코딩 스타일 ${savedStyles.length + 1}`;
+      styleName.trim() ||
+      `코딩 스타일 ${savedStyles.length + 1}`;
 
-    const styleSyntaxTags = filterStyleRelevantSyntaxTags(
-      result.syntax_tags
-    );
+    const styleSyntaxTags =
+      filterStyleRelevantSyntaxTags(
+        result.syntax_tags
+      );
 
     const conceptNames =
-      result.concept_tags.map((item) => item.tag).join(", ") ||
+      result.concept_tags
+        .map((item) => item.tag)
+        .join(", ") ||
       "특정 개념 태그 없음";
 
     const syntaxNames =
-      styleSyntaxTags.map((item) => item.tag).join(", ") ||
+      styleSyntaxTags
+        .map((item) => item.tag)
+        .join(", ") ||
       "저장 대상 핵심 문법 태그 없음";
 
     const newStyle: SharedCodingStyle = {
       id: createStyleId(),
       name,
-      description: `이 코딩 스타일은 개념 태그(${conceptNames})를 코드 구조 기준으로 사용하고, 저장용 핵심 문법 태그(${syntaxNames})를 적용 가능한 문법 한계로 사용한다.`,
+      description:
+        `이 코딩 스타일은 개념 태그(${conceptNames})를 코드 구조 기준으로 사용하고, ` +
+        `저장용 핵심 문법 태그(${syntaxNames})를 적용 가능한 문법 한계로 사용한다.`,
       syntax_tags: styleSyntaxTags,
       concept_tags: result.concept_tags,
       metrics: result.metrics,
@@ -382,15 +457,22 @@ print(average)`);
       is_shared: false,
     };
 
-    const nextStyles = [newStyle, ...savedStyles];
+    const nextStyles = [
+      newStyle,
+      ...savedStyles,
+    ];
 
     saveStylesToStorage(nextStyles);
     setStyleName("");
+
     alert("코딩 스타일이 저장되었습니다.");
   };
 
   const handleDeleteStyle = (id: string) => {
-    const nextStyles = savedStyles.filter((style) => style.id !== id);
+    const nextStyles = savedStyles.filter(
+      (style) => style.id !== id
+    );
+
     saveStylesToStorage(nextStyles);
 
     if (selectedStyleId === id) {
@@ -412,28 +494,39 @@ print(average)`);
       return;
     }
 
-    const nextUser = { email: account.email };
+    const nextUser = {
+      email: account.email,
+    };
 
     setCurrentUser(nextUser);
+
     localStorage.setItem(
       CURRENT_USER_STORAGE_KEY,
       JSON.stringify(nextUser)
     );
 
     loadStylesByEmail(account.email);
+
     setLoginEmail("");
     setLoginPassword("");
     setSelectedStyleId("");
     setStyleApplyResult(null);
     setEditableTransformedCode("");
 
-    alert(`${account.email} 계정으로 로그인되었습니다.`);
+    alert(
+      `${account.email} 계정으로 로그인되었습니다.`
+    );
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+
+    localStorage.removeItem(
+      CURRENT_USER_STORAGE_KEY
+    );
+
     loadStylesByEmail(GUEST_EMAIL);
+
     setSelectedStyleId("");
     setStyleApplyResult(null);
     setEditableTransformedCode("");
@@ -441,7 +534,9 @@ print(average)`);
     alert("로그아웃되었습니다.");
   };
 
-  const handleOpenShareModal = (style: SharedCodingStyle) => {
+  const handleOpenShareModal = (
+    style: SharedCodingStyle
+  ) => {
     if (!currentUser) {
       alert("로그인이 필요한 서비스입니다.");
       return;
@@ -470,7 +565,9 @@ print(average)`);
     }
 
     if (targetEmail === currentUser.email) {
-      alert("현재 로그인한 본인 계정으로는 공유할 수 없습니다.");
+      alert(
+        "현재 로그인한 본인 계정으로는 공유할 수 없습니다."
+      );
       return;
     }
 
@@ -479,12 +576,17 @@ print(average)`);
     );
 
     if (!targetAccount) {
-      alert("현재 등록된 테스트 계정으로만 공유할 수 있습니다.");
+      alert(
+        "현재 등록된 테스트 계정으로만 공유할 수 있습니다."
+      );
       return;
     }
 
-    const targetStorageKey = getStyleStorageKey(targetEmail);
-    const rawTargetStyles = localStorage.getItem(targetStorageKey);
+    const targetStorageKey =
+      getStyleStorageKey(targetEmail);
+
+    const rawTargetStyles =
+      localStorage.getItem(targetStorageKey);
 
     let targetStyles: SharedCodingStyle[] = [];
 
@@ -510,16 +612,46 @@ print(average)`);
 
     localStorage.setItem(
       targetStorageKey,
-      JSON.stringify([sharedStyle, ...targetStyles])
+      JSON.stringify([
+        sharedStyle,
+        ...targetStyles,
+      ])
     );
 
     setShareModalStyle(null);
     setShareTargetEmail("");
 
-    alert(`${targetEmail} 계정으로 코딩 스타일을 공유했습니다.`);
+    alert(
+      `${targetEmail} 계정으로 코딩 스타일을 공유했습니다.`
+    );
   };
 
-  const handleApplyStyle = async () => {
+  /**
+   * 저장된 코딩 스타일을 대상 코드에 적용합니다.
+   *
+   * 기존 사용:
+   *   handleApplyStyle()
+   *
+   * 함수 반환값 검증 사용:
+   *   handleApplyStyle([
+   *     {
+   *       function: "calculate",
+   *       args: [5],
+   *       kwargs: {},
+   *     },
+   *   ])
+   *
+   * 함수 테스트 입력을 전달하지 않으면
+   * 기존 실행 출력 비교만 수행합니다.
+   *
+   * 테스트 입력을 전달하면:
+   * - 기존 실행 출력과 종료 상태 비교
+   * - 함수 반환값과 자료형 비교
+   * - 차이 발생 시 백엔드에서 원본 코드 복원
+   */
+  const handleApplyStyle = async (
+    functionCases?: FunctionTestCase[] | null
+  ) => {
     const selectedStyle = savedStyles.find(
       (style) => style.id === selectedStyleId
     );
@@ -539,12 +671,14 @@ print(average)`);
 
       const applyResponse = await applyCodingStyle(
         targetCode,
-        selectedStyle
+        selectedStyle,
+        functionCases
       );
 
       if (!applyResponse.success) {
         alert(
-          applyResponse.error || "코딩 스타일 적용에 실패했습니다."
+          applyResponse.error ||
+            "코딩 스타일 적용에 실패했습니다."
         );
 
         setStyleApplyResult(null);
@@ -553,7 +687,9 @@ print(average)`);
       }
 
       if (!applyResponse.final_analysis) {
-        alert("스타일 적용 후 최종 코드 분석 결과를 받지 못했습니다.");
+        alert(
+          "스타일 적용 후 최종 코드 분석 결과를 받지 못했습니다."
+        );
 
         setStyleApplyResult(null);
         setEditableTransformedCode("");
@@ -562,25 +698,38 @@ print(average)`);
 
       const finalAnalysis: AnalysisResponse = {
         success: true,
-        syntax_tags: applyResponse.final_analysis.syntax_tags,
-        concept_tags: applyResponse.final_analysis.concept_tags,
-        metrics: applyResponse.final_analysis.metrics,
+        syntax_tags:
+          applyResponse.final_analysis.syntax_tags,
+        concept_tags:
+          applyResponse.final_analysis.concept_tags,
+        metrics:
+          applyResponse.final_analysis.metrics,
         suggestions: [],
         error: null,
       };
 
       setStyleApplyResult({
         styleName: selectedStyle.name,
-        missingSyntaxTags: applyResponse.missing_syntax_tags,
-        missingConceptTags: applyResponse.missing_concept_tags,
+        missingSyntaxTags:
+          applyResponse.missing_syntax_tags,
+        missingConceptTags:
+          applyResponse.missing_concept_tags,
         targetAnalysis: finalAnalysis,
         applyResponse,
       });
 
-      setEditableTransformedCode(applyResponse.transformed_code);
+      setEditableTransformedCode(
+        applyResponse.transformed_code
+      );
     } catch (error) {
-      console.error("스타일 적용 오류:", error);
-      alert("스타일 적용 중 오류가 발생했습니다.");
+      console.error(
+        "스타일 적용 오류:",
+        error
+      );
+
+      alert(
+        "스타일 적용 중 오류가 발생했습니다."
+      );
     } finally {
       setStyleApplyLoading(false);
     }

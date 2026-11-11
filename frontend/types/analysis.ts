@@ -1,3 +1,4 @@
+
 export type SyntaxTag = {
   tag: string;
   count?: number | null;
@@ -32,6 +33,15 @@ export type FinalStyleAnalysis = {
   metrics: Record<string, number>;
 };
 
+// ============================================================
+// Runtime execution verification
+// ============================================================
+
+export type VerificationStatus =
+  | "equivalent"
+  | "different"
+  | "not_verified";
+
 export type ExecutionResult = {
   success: boolean;
   stdout: string;
@@ -42,14 +52,68 @@ export type ExecutionResult = {
   block_reason?: string | null;
 };
 
-export type ExecutionVerification = {
-  source: string;
-  status: "equivalent" | "different" | "not_verified";
+// ============================================================
+// Function test inputs
+// ============================================================
+
+// JSON으로 전송 가능한 함수 테스트 입력값입니다.
+// 실제 지원 자료형과 중첩 깊이는 백엔드에서도 검사합니다.
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type FunctionTestCase = {
+  function: string;
+  args?: JsonValue[];
+  kwargs?: Record<string, JsonValue>;
+};
+
+// ============================================================
+// Function return verification
+// ============================================================
+
+export type FunctionCaseVerification = {
+  function: string;
+  args: JsonValue[];
+  kwargs: Record<string, JsonValue>;
+  status: VerificationStatus;
   equivalent: boolean | null;
-  original: ExecutionResult;
-  transformed: ExecutionResult;
   message: string;
 };
+
+export type FunctionVerification = {
+  status: VerificationStatus;
+  equivalent: boolean | null;
+  cases: FunctionCaseVerification[];
+  message: string;
+};
+
+// ============================================================
+// Combined execution verification
+// ============================================================
+
+export type ExecutionVerification = {
+  source: string;
+  status: VerificationStatus;
+  equivalent: boolean | null;
+
+  original: ExecutionResult;
+  transformed: ExecutionResult;
+
+  message: string;
+
+  // 기존 API 요청에서는 null일 수 있습니다.
+  // 함수 테스트를 요청하면 검증 결과가 전달됩니다.
+  function_verification?: FunctionVerification | null;
+};
+
+// ============================================================
+// Saved coding style
+// ============================================================
 
 export interface CodingStyle {
   id: string;
@@ -61,12 +125,30 @@ export interface CodingStyle {
   created_at: string;
 }
 
+// ============================================================
+// Style application request
+// ============================================================
+
+export type StyleApplyRequest = {
+  language: string;
+  code: string;
+  style: CodingStyle;
+
+  // 지정하지 않으면 기존 실행 출력 비교만 수행합니다.
+  function_cases?: FunctionTestCase[] | null;
+};
+
+// ============================================================
+// Style application response
+// ============================================================
+
 export type StyleApplyResponse = {
   success: boolean;
   original_code: string;
   transformed_code: string;
 
   final_analysis?: FinalStyleAnalysis | null;
+
   missing_syntax_tags: SyntaxTag[];
   missing_concept_tags: ConceptTag[];
 
@@ -75,5 +157,6 @@ export type StyleApplyResponse = {
   summary?: string | null;
   applied_rules: string[];
   warnings: string[];
+
   error?: string | null;
 };
