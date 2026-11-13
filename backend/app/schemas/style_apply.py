@@ -139,6 +139,13 @@ class FunctionCaseVerification(BaseModel):
 
     message: str = ""
 
+    # Observed records returned by the function-test harness.
+    # None means execution was blocked or a result was unavailable.
+    original_result: Optional[Dict[str, Any]] = None
+    transformed_result: Optional[Dict[str, Any]] = None
+    original_stdout: Optional[str] = None
+    transformed_stdout: Optional[str] = None
+
 
 class FunctionVerification(BaseModel):
     """

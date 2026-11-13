@@ -284,6 +284,10 @@ def _compare_case(
         "status": "not_verified",
         "equivalent": None,
         "message": "",
+        "original_result": None,
+        "transformed_result": None,
+        "original_stdout": None,
+        "transformed_stdout": None,
     }
 
     if original.blocked or transformed.blocked:
@@ -320,6 +324,13 @@ def _compare_case(
 
     before_stdout, before_record = before
     after_stdout, after_record = after
+
+    # Display the actual observations for the supplied function arguments.
+    # Preserve type information (list vs tuple, int vs bool, None, etc.).
+    item["original_result"] = before_record
+    item["transformed_result"] = after_record
+    item["original_stdout"] = before_stdout
+    item["transformed_stdout"] = after_stdout
 
     # Unsupported return objects cannot be compared reliably.
     if (

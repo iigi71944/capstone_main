@@ -76,6 +76,14 @@ export type FunctionTestCase = {
 // Function return verification
 // ============================================================
 
+export type FunctionResultRecord = {
+  kind: "value" | "exception" | "unsupported";
+  value?: unknown;
+  type?: string;
+  message?: string;
+  reason?: string;
+};
+
 export type FunctionCaseVerification = {
   function: string;
   args: JsonValue[];
@@ -83,6 +91,10 @@ export type FunctionCaseVerification = {
   status: VerificationStatus;
   equivalent: boolean | null;
   message: string;
+  original_result?: FunctionResultRecord | null;
+  transformed_result?: FunctionResultRecord | null;
+  original_stdout?: string | null;
+  transformed_stdout?: string | null;
 };
 
 export type FunctionVerification = {

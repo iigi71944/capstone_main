@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 
 import CodeEditor from "../editor/CodeEditor";
 import CodeViewer from "../editor/CodeViewer";
+import FunctionReturnResults from "./FunctionReturnResults";
 
 import type {
   AnalysisResponse,
@@ -1172,108 +1173,18 @@ export default function StyleApplySection({
             {/* ========================================= */}
 
             {functionVerification && (
-              <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        Function Verification
-                      </p>
+              <FunctionReturnResults verification={functionVerification} />
+            )}
 
-                      <h3 className="mt-1 text-base font-bold text-slate-900">
-                        함수 반환값 검증 결과
-                      </h3>
-                    </div>
-
-                    <span
-                      className={`self-start rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
-                        functionVerification.status
-                      )}`}
-                    >
-                      {getStatusLabel(
-                        functionVerification.status
-                      )}
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    동일한 입력값으로 함수를 각각
-                    실행하여 반환값, 자료형 및
-                    출력 결과를 비교했습니다.
-                  </p>
-                </div>
-
-                <div className="space-y-3 p-5">
-                  {functionVerification.cases.map(
-                    (testCase, index) => (
-                      <div
-                        key={`${testCase.function}-${index}`}
-                        className="rounded-lg border border-slate-200 bg-white p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs text-slate-400">
-                              Test {index + 1}
-                            </p>
-
-                            <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
-                              {testCase.function}()
-                            </p>
-                          </div>
-
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
-                              testCase.status
-                            )}`}
-                          >
-                            {getStatusLabel(
-                              testCase.status
-                            )}
-                          </span>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          <div>
-                            <p className="mb-1 text-xs font-semibold text-slate-500">
-                              순서대로 넣은 값
-                            </p>
-
-                            <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-700">
-                              {JSON.stringify(
-                                testCase.args
-                              )}
-                            </pre>
-                          </div>
-
-                          <div>
-                            <p className="mb-1 text-xs font-semibold text-slate-500">
-                              이름을 지정해 넣은 값
-                            </p>
-
-                            <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-700">
-                              {JSON.stringify(
-                                testCase.kwargs
-                              )}
-                            </pre>
-                          </div>
-                        </div>
-
-                        <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                          {testCase.message}
-                        </p>
-                      </div>
-                    )
-                  )}
-
-                  <p className="text-xs leading-relaxed text-slate-500">
-                    현재 백엔드는 반환값의 비교
-                    판정만 제공합니다.
-                    변환 전후의 실제 반환값
-                    상세 정보는 별도 응답 확장이
-                    필요합니다. 이 검증은
-                    지정한 테스트 입력에만 적용됩니다.
-                  </p>
-                </div>
+            {!functionVerification && useFunctionTests && styleApplyResult && (
+              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  함수 테스트 결과를 확인할 수 없습니다.
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-amber-700">
+                  {executionVerification?.message ||
+                    "실행 정책 또는 코드 오류로 함수 테스트가 수행되지 않았습니다."}
+                </p>
               </div>
             )}
 
