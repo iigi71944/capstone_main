@@ -1,22 +1,12 @@
-"""Conservatively convert counted while loops to for/range loops.
+"""Convert statically bounded integer-counter while loops into for/range.
 
-This feature only handles while loops. Existing direct/index/for-to-while
-transformers retain their responsibilities. The final counter update stays
-in the loop body so values after the loop are preserved.
+Ownership: this transformer handles while -> for only. The for -> while
+transformer uses iterator semantics in for_to_while_service.py.
 
-Examples:
-    index = 0
-    while index < len(items):
-        print(items[index])
-        index += 1
-
-    index = 0
-    for index in range(index, len(items)):
-        print(items[index])
-        index += 1
-
-The redundant-looking increment is intentional: removing it changes the
-counter's final value after the loop (and can affect closure observability).
+Supported: signed integer steps, += / -= / ordinary assignments, reversed
+comparison operands, inclusive boundaries, proven integer limit variables,
+and len() of locally initialized literal collections. Unproven or dynamic
+bounds remain while loops, because range() evaluates bounds only once.
 """
 
 from __future__ import annotations
@@ -26,6 +16,10 @@ import io
 import tokenize
 from dataclasses import dataclass
 
+from app.services.improvement.for_iterator_to_for_service import (
+    restore_iterator_for_loops,
+)
+
 
 @dataclass(frozen=True)
 class _Edit:
@@ -34,196 +28,201 @@ class _Edit:
     replacement: bytes
 
 
-def _integer_constant(node: ast.AST) -> int | None:
+def _int_literal(node: ast.AST) -> int | None:
     if isinstance(node, ast.Constant) and type(node.value) is int:
         return node.value
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-        value = _integer_constant(node.operand)
-        return -value if value is not None else None
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd):
-        return _integer_constant(node.operand)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        value = _int_literal(node.operand)
+        if value is not None:
+            return -value if isinstance(node.op, ast.USub) else value
     return None
 
 
-def _counter_step(node: ast.stmt) -> tuple[str, int] | None:
-    if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
-        increment = _integer_constant(node.value)
-        if increment is None:
-            return None
-        if isinstance(node.op, ast.Add):
-            return node.target.id, increment
-        if isinstance(node.op, ast.Sub):
-            return node.target.id, -increment
-        return None
-
+def _step(stmt: ast.stmt) -> tuple[str, int] | None:
+    if isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+        value = _int_literal(stmt.value)
+        if value is not None:
+            if isinstance(stmt.op, ast.Add):
+                return stmt.target.id, value
+            if isinstance(stmt.op, ast.Sub):
+                return stmt.target.id, -value
     if not (
-        isinstance(node, ast.Assign)
-        and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Name)
-        and isinstance(node.value, ast.BinOp)
+        isinstance(stmt, ast.Assign)
+        and len(stmt.targets) == 1
+        and isinstance(stmt.targets[0], ast.Name)
+        and isinstance(stmt.value, ast.BinOp)
     ):
         return None
-
-    name = node.targets[0].id
-    expression = node.value
-    if isinstance(expression.op, ast.Add):
-        if isinstance(expression.left, ast.Name) and expression.left.id == name:
-            amount = _integer_constant(expression.right)
+    name = stmt.targets[0].id
+    expr = stmt.value
+    if isinstance(expr.op, ast.Add):
+        if isinstance(expr.left, ast.Name) and expr.left.id == name:
+            amount = _int_literal(expr.right)
             if amount is not None:
                 return name, amount
-        if isinstance(expression.right, ast.Name) and expression.right.id == name:
-            amount = _integer_constant(expression.left)
+        if isinstance(expr.right, ast.Name) and expr.right.id == name:
+            amount = _int_literal(expr.left)
             if amount is not None:
                 return name, amount
-    if isinstance(expression.op, ast.Sub):
-        if isinstance(expression.left, ast.Name) and expression.left.id == name:
-            amount = _integer_constant(expression.right)
+    if isinstance(expr.op, ast.Sub):
+        if isinstance(expr.left, ast.Name) and expr.left.id == name:
+            amount = _int_literal(expr.right)
             if amount is not None:
                 return name, -amount
     return None
 
 
-def _bound_expression(node: ast.AST, index_name: str) -> tuple[str, str | None] | None:
-    """Return pure integer expression text and optional sequence dependency.
-
-    Name bounds are allowed if not assigned in the body. Noninteger runtime
-    values may be rejected by range(); unchanged behavior is therefore not
-    guaranteed for arbitrary user-supplied parameter types. The enclosing
-    runtime equivalence check must still run for every applied transformation.
-    """
-    if isinstance(node, ast.Constant) and type(node.value) is int:
-        return repr(node.value), None
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        inner = _bound_expression(node.operand, index_name)
-        if inner is None:
-            return None
-        return ("-" if isinstance(node.op, ast.USub) else "+") + f"({inner[0]})", inner[1]
-    if isinstance(node, ast.Name) and node.id != index_name:
-        return node.id, node.id
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "len"
-        and len(node.args) == 1
-        and not node.keywords
-        and isinstance(node.args[0], ast.Name)
-        and node.args[0].id != index_name
-    ):
-        return f"len({node.args[0].id})", node.args[0].id
-    return None
-
-
-def _inverted_operator(operator: ast.cmpop) -> ast.cmpop:
-    inverse = {ast.Lt: ast.Gt, ast.LtE: ast.GtE, ast.Gt: ast.Lt, ast.GtE: ast.LtE}
-    return inverse[type(operator)]()
-
-
-def _condition(node: ast.AST, counter: str, step: int) -> tuple[str, str | None] | None:
-    if not (
-        isinstance(node, ast.Compare)
-        and len(node.ops) == 1
-        and len(node.comparators) == 1
-    ):
+def _condition(test: ast.AST, counter: str, step: int):
+    if not (isinstance(test, ast.Compare) and len(test.ops) == 1
+            and len(test.comparators) == 1):
         return None
-    left, right, operator = node.left, node.comparators[0], node.ops[0]
+    left, right, operator = test.left, test.comparators[0], test.ops[0]
     if isinstance(left, ast.Name) and left.id == counter:
-        bound_node = right
+        bound = right
     elif isinstance(right, ast.Name) and right.id == counter:
-        if not isinstance(operator, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+        bound = left
+        invert = {
+            ast.Lt: ast.Gt, ast.LtE: ast.GtE,
+            ast.Gt: ast.Lt, ast.GtE: ast.LtE,
+        }
+        if type(operator) not in invert:
             return None
-        bound_node = left
-        operator = _inverted_operator(operator)
+        operator = invert[type(operator)]()
     else:
         return None
-
-    bound = _bound_expression(bound_node, counter)
-    if bound is None:
+    if not isinstance(operator, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
         return None
-    text, dependency = bound
-    if step > 0:
-        if isinstance(operator, ast.Lt):
-            stop = text
-        elif isinstance(operator, ast.LtE):
-            stop = f"({text}) + 1"
-        else:
-            return None
+    if step > 0 and not isinstance(operator, (ast.Lt, ast.LtE)):
+        return None
+    if step < 0 and not isinstance(operator, (ast.Gt, ast.GtE)):
+        return None
+    if _int_literal(bound) is not None:
+        text, dependency, kind = repr(_int_literal(bound)), None, "constant"
+    elif isinstance(bound, ast.Name) and bound.id != counter:
+        text, dependency, kind = bound.id, bound.id, "name"
+    elif (
+        isinstance(bound, ast.Call)
+        and isinstance(bound.func, ast.Name)
+        and bound.func.id == "len"
+        and len(bound.args) == 1
+        and not bound.keywords
+        and isinstance(bound.args[0], ast.Name)
+        and bound.args[0].id != counter
+    ):
+        text = f"len({bound.args[0].id})"
+        dependency, kind = bound.args[0].id, "length"
     else:
-        if isinstance(operator, ast.Gt):
-            stop = text
-        elif isinstance(operator, ast.GtE):
-            stop = f"({text}) - 1"
-        else:
-            return None
-    return stop, dependency
+        return None
+    if isinstance(operator, ast.LtE):
+        text = f"({text}) + 1"
+    elif isinstance(operator, ast.GtE):
+        text = f"({text}) - 1"
+    return text, dependency, kind
 
 
-def _shadowed_builtin(tree: ast.AST, name: str) -> bool:
+def _shadowed_builtin(tree: ast.AST, names: set[str]) -> bool:
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id == name and isinstance(node.ctx, (ast.Store, ast.Del)):
+        if isinstance(node, ast.Name) and node.id in names and isinstance(node.ctx, (ast.Store, ast.Del)):
             return True
-        if isinstance(node, ast.arg) and node.arg == name:
+        if isinstance(node, ast.arg) and node.arg in names:
             return True
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == name:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name in names:
             return True
-        if isinstance(node, ast.alias) and (node.asname or node.name.split(".")[0]) == name:
+        if isinstance(node, ast.alias) and (node.asname or node.name.split(".")[0]) in names:
             return True
-        if isinstance(node, (ast.Global, ast.Nonlocal)) and name in node.names:
-            return True
-        if isinstance(node, ast.ExceptHandler) and node.name == name:
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and set(node.names) & names:
             return True
     return False
 
 
-def _body_safe(node: ast.While, counter: str, dependency: str | None) -> bool:
-    if not node.body:
-        return False
-    # The update must be the last *direct* statement of the loop body.
-    if _counter_step(node.body[-1]) is None:
-        return False
+def _simple_binding(stmt: ast.stmt, name: str) -> ast.expr | None:
+    if (
+        isinstance(stmt, ast.Assign)
+        and len(stmt.targets) == 1
+        and isinstance(stmt.targets[0], ast.Name)
+        and stmt.targets[0].id == name
+    ):
+        return stmt.value
+    return None
 
+
+def _has_fixed_binding(body: list[ast.stmt], position: int, name: str, kind: str) -> bool:
+    """Require a literal counter / limit before the loop in its own block."""
+    for stmt in reversed(body[:position]):
+        value = _simple_binding(stmt, name)
+        if value is None:
+            # Only permit intervening simple, independent assignments.
+            if not isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+                return False
+            for part in ast.walk(stmt):
+                if isinstance(part, ast.Name) and part.id == name:
+                    return False
+            continue
+        if kind == "int":
+            return _int_literal(value) is not None
+        if kind == "length":
+            return (
+                isinstance(value, (ast.List, ast.Tuple, ast.Set, ast.Dict))
+                and not any(isinstance(x, (ast.Starred, ast.Call)) for x in ast.walk(value))
+            ) or (isinstance(value, ast.Constant) and isinstance(value.value, (str, bytes)))
+    return False
+
+
+def _aliased_before_loop(body: list[ast.stmt], position: int, name: str) -> bool:
+    """Do not freeze len(name) when another local may mutate the same list."""
+    for stmt in body[:position]:
+        for part in ast.walk(stmt):
+            if isinstance(part, (ast.Assign, ast.NamedExpr)):
+                value = part.value
+                if isinstance(value, ast.Name) and value.id == name:
+                    return True
+    return False
+
+
+def _body_safe(node: ast.While, counter: str, dependency: str | None) -> bool:
+    if not node.body or _step(node.body[-1]) is None:
+        return False
     for statement in node.body[:-1]:
-        for descendant in ast.walk(statement):
-            if isinstance(descendant, (ast.Continue, ast.Yield, ast.YieldFrom, ast.Await)):
+        for part in ast.walk(statement):
+            if isinstance(part, (ast.Continue, ast.Yield, ast.YieldFrom, ast.Await)):
                 return False
-            if isinstance(descendant, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            if isinstance(part, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
                 return False
-            if isinstance(descendant, ast.Name) and isinstance(descendant.ctx, (ast.Store, ast.Del)):
-                if descendant.id == counter or descendant.id == dependency:
+            if isinstance(part, (ast.Global, ast.Nonlocal)):
+                return False
+            if isinstance(part, ast.Name) and isinstance(part.ctx, (ast.Store, ast.Del)):
+                if part.id in {counter, dependency}:
                     return False
-            if isinstance(descendant, (ast.Global, ast.Nonlocal)):
-                if counter in descendant.names or dependency in descendant.names:
-                    return False
-            # A call with the bound object (e.g. items.pop()) can change len().
-            if dependency is not None and isinstance(descendant, ast.Call):
-                if isinstance(descendant.func, ast.Attribute):
-                    if isinstance(descendant.func.value, ast.Name) and descendant.func.value.id == dependency:
+            # Any call receiving the bound container or calling methods on it
+            # could change len(container) between iterations.
+            if dependency is not None and isinstance(part, ast.Call):
+                if isinstance(part.func, ast.Attribute) and isinstance(part.func.value, ast.Name):
+                    if part.func.value.id == dependency:
                         return False
-                for arg in [*descendant.args, *(kw.value for kw in descendant.keywords)]:
-                    if any(isinstance(part, ast.Name) and part.id == dependency for part in ast.walk(arg)):
-                        if not (isinstance(descendant.func, ast.Name) and descendant.func.id == "print"):
-                            return False
-    # Python for-else and while-else both run the else suite on normal completion.
+                if any(
+                    isinstance(child, ast.Name) and child.id == dependency
+                    for arg in [*part.args, *(kw.value for kw in part.keywords)]
+                    for child in ast.walk(arg)
+                ):
+                    if not (isinstance(part.func, ast.Name) and part.func.id == "print"):
+                        return False
     return True
 
 
-def _header_edit(source: str, node: ast.While, counter: str, stop: str, step: int) -> _Edit | None:
+def _header_edit(code: str, node: ast.While, counter: str, stop: str, step: int):
     if node.test.lineno != node.lineno or node.test.end_lineno != node.lineno:
         return None
-    lines = source.splitlines(keepends=True)
-    if node.lineno > len(lines):
-        return None
+    lines = code.splitlines(keepends=True)
     line = lines[node.lineno - 1]
     ending = "\r\n" if line.endswith("\r\n") else "\n" if line.endswith("\n") else ""
     raw = line[:-len(ending)] if ending else line
-    indent = raw[:node.col_offset]
-    if indent.strip() or not raw[node.col_offset:].startswith("while "):
+    prefix = raw[:node.col_offset]
+    if prefix.strip() or not raw[node.col_offset:].startswith(("while ", "while(")):
         return None
-    # Locate the real header colon, not a colon inside a string or a comment.
     depth = 0
     colon = None
     try:
-        tokens = tokenize.generate_tokens(io.StringIO(raw + "\n").readline)
-        for token in tokens:
+        for token in tokenize.generate_tokens(io.StringIO(raw + "\n").readline):
             if token.type != tokenize.OP:
                 continue
             if token.string in "([{":
@@ -240,56 +239,66 @@ def _header_edit(source: str, node: ast.While, counter: str, stop: str, step: in
     tail = raw[colon + 1:]
     if tail.strip() and not tail.lstrip().startswith("#"):
         return None
-    # Keep the exact existing final increment to preserve the counter's final value.
-    range_args = f"{counter}, {stop}" if step == 1 else f"{counter}, {stop}, {step}"
-    replacement = f"{indent}for {counter} in range({range_args}):{tail}{ending}"
+    arguments = f"{counter}, {stop}" if step == 1 else f"{counter}, {stop}, {step}"
+    replacement = f"{prefix}for {counter} in range({arguments}):{tail}{ending}"
     start = sum(len(ln.encode("utf-8")) for ln in lines[:node.lineno - 1])
     return _Edit(start, start + len(line.encode("utf-8")), replacement.encode("utf-8"))
 
 
-def transform_counted_while_to_for(code: str) -> str:
-    """Change safely bounded while loops into for loops; never change for loops.
+def _candidate_blocks(tree: ast.AST):
+    """Find loops together with their directly enclosing statement lists."""
+    for scope in ast.walk(tree):
+        for _, value in ast.iter_fields(scope):
+            if not isinstance(value, list):
+                continue
+            if not value or not all(isinstance(x, ast.stmt) for x in value):
+                continue
+            for index, stmt in enumerate(value):
+                if isinstance(stmt, ast.While):
+                    yield value, index, stmt
 
-    Supports i += step, i -= step, i = i + step, i = step + i,
-    i = i - step; <, <=, >, >=; reversed comparisons; integer literals,
-    simple name bounds, len(name), and while-else/break (but not continue).
-    """
+
+def transform_counted_while_to_for(code: str) -> str:
+    """Restore lowered for-loops, then convert safe integer-counter while."""
+    code = restore_iterator_for_loops(code)
     try:
         tree = ast.parse(code)
-    except SyntaxError:
-        return code
-
-    if _shadowed_builtin(tree, "range") or _shadowed_builtin(tree, "len"):
-        return code
-
-    edits: list[_Edit] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.While) or not node.body:
-            continue
-        update = _counter_step(node.body[-1])
-        if update is None:
-            continue
-        counter, step = update
-        if step == 0 or abs(step) > 1000000:
-            continue
-        check = _condition(node.test, counter, step)
-        if check is None:
-            continue
-        stop, dependency = check
-        if not _body_safe(node, counter, dependency):
-            continue
-        edit = _header_edit(code, node, counter, stop, step)
-        if edit is not None:
-            edits.append(edit)
-
-    if not edits:
-        return code
-    result = code.encode("utf-8")
-    for edit in sorted(edits, key=lambda item: item.start, reverse=True):
-        result = result[:edit.start] + edit.replacement + result[edit.end:]
-    try:
-        transformed = result.decode("utf-8")
-        ast.parse(transformed)
-        return transformed
-    except (UnicodeDecodeError, SyntaxError):
+        if _shadowed_builtin(tree, {"range", "len"}):
+            return code
+        edits: list[_Edit] = []
+        for body, position, node in _candidate_blocks(tree):
+            if not node.body:
+                continue
+            update = _step(node.body[-1])
+            if update is None:
+                continue
+            counter, step = update
+            if step == 0 or abs(step) > 1000000:
+                continue
+            if not _has_fixed_binding(body, position, counter, "int"):
+                continue
+            check = _condition(node.test, counter, step)
+            if check is None:
+                continue
+            stop, dependency, kind = check
+            if dependency is not None:
+                binding_kind = "length" if kind == "length" else "int"
+                if not _has_fixed_binding(body, position, dependency, binding_kind):
+                    continue
+                if kind == "length" and _aliased_before_loop(body, position, dependency):
+                    continue
+            if not _body_safe(node, counter, dependency):
+                continue
+            edit = _header_edit(code, node, counter, stop, step)
+            if edit is not None:
+                edits.append(edit)
+        if not edits:
+            return code
+        result = code.encode("utf-8")
+        for edit in sorted(edits, key=lambda e: e.start, reverse=True):
+            result = result[:edit.start] + edit.replacement + result[edit.end:]
+        output = result.decode("utf-8")
+        ast.parse(output)
+        return output
+    except (SyntaxError, UnicodeError, tokenize.TokenError, ValueError):
         return code

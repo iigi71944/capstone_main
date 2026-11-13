@@ -17,10 +17,12 @@ CREATE_ACTION_BY_TAG: dict[str, str] = {
     # Its direction is gated by saved/target syntax in the plan builder.
     "반복문 중심 구조": "create_counted_while_to_for",
 
-    # Existing list and dictionary styles.
+    # Preserve the public tag-to-action names used by existing styles/tests.
+    # The plan builder upgrades these *specific tags* to safe internal actions.
     "리스트 누적 방식 사용": "create_append_collection",
-    "리스트 메서드 호출": "create_append_collection",
     "리스트 컴프리헨션": "create_comprehension_collection",
+    # Broader tags retain the existing general collection transforms.
+    "리스트 메서드 호출": "create_append_collection",
     "컴프리헨션 기반 간결 구조": "create_comprehension_collection",
     "딕셔너리 기반 매핑 구조": "create_mapping_style",
     "딕셔너리 컴프리헨션": "create_dict_comprehension",

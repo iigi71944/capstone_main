@@ -5,9 +5,21 @@ from app.services.style_tag_transform_map_service import get_create_action_for_t
 FILTER_CONCEPT_TAG = "데이터 필터링 구조"
 LIST_COMPREHENSION_TAG = "리스트 컴프리헨션"
 SORT_CONCEPT_TAG = "정렬 중심 구조"
+DICT_COMPREHENSION_TAG = "딕셔너리 컴프리헨션"
+DICT_MAPPING_CONCEPT_TAG = "딕셔너리 기반 매핑 구조"
+SAFE_DICT_ACTIONS = {"create_safe_dict_comprehension", "create_safe_dict_loop"}
 FILTER_RELATED_COMPREHENSION_TAGS = {
     "리스트 컴프리헨션",
     "컴프리헨션 기반 간결 구조",
+}
+
+SAFE_LIST_ACTIONS = {
+    "create_safe_append_collection",
+    "create_safe_comprehension_collection",
+}
+LEGACY_LIST_ACTION_BY_SAFE = {
+    "create_safe_append_collection": "create_append_collection",
+    "create_safe_comprehension_collection": "create_comprehension_collection",
 }
 
 
@@ -22,11 +34,104 @@ def _deduplicate_actions(actions: list[dict]) -> list[dict]:
     unique_actions = []
     seen = set()
     for item in actions:
-        key = (item.get("tag"), item.get("action"))
+        action = item.get("action")
+        # The same safe transformer may be selected by both a syntax and a
+        # concept tag. Run it only once; leave other legacy dedup unchanged.
+        key = ("safe_list", action) if action in SAFE_LIST_ACTIONS else (item.get("tag"), action)
         if key not in seen:
             seen.add(key)
             unique_actions.append(item)
     return unique_actions
+
+
+def _resolve_collection_actions(actions: list[dict]) -> list[dict]:
+    """Keep a single direction for each concrete list pattern preference.
+
+    The explicit syntax/concept tags take precedence over broad legacy tags.
+    Other existing transformations retain their relative order.
+    """
+    actions = _deduplicate_actions(actions)
+    safe = {item.get("action") for item in actions} & SAFE_LIST_ACTIONS
+    if len(safe) == 2:
+        # A saved style can contain both list-building idioms in different
+        # places. Without a per-function preference, do not guess a direction.
+        # Preserve all unrelated actions.
+        conflicting = SAFE_LIST_ACTIONS | set(LEGACY_LIST_ACTION_BY_SAFE.values())
+        return [item for item in actions if item.get("action") not in conflicting]
+    shadowed = {LEGACY_LIST_ACTION_BY_SAFE[name] for name in safe}
+    kept = [item for item in actions if item.get("action") not in shadowed]
+    return ([item for item in kept if item.get("action") in SAFE_LIST_ACTIONS]
+            + [item for item in kept if item.get("action") not in SAFE_LIST_ACTIONS])
+
+
+def _resolve_dictionary_actions(actions: list[dict]) -> list[dict]:
+    """Prefer precise dictionary transforms without altering public tag names.
+
+    An ambiguous two-direction plan fails closed for dictionary actions only.
+    Broad non-dictionary actions keep their original order.
+    """
+    actions = _deduplicate_actions(actions)
+    present = {item.get("action") for item in actions} & SAFE_DICT_ACTIONS
+    if len(present) == 2:
+        return [item for item in actions if item.get("action") not in SAFE_DICT_ACTIONS
+                and not (item.get("tag") in {DICT_COMPREHENSION_TAG, DICT_MAPPING_CONCEPT_TAG}
+                         and item.get("action") in {"create_dict_comprehension", "create_mapping_style"})]
+    if "create_safe_dict_comprehension" in present:
+        actions = [item for item in actions
+                   if not (item.get("tag") == DICT_COMPREHENSION_TAG
+                           and item.get("action") == "create_dict_comprehension")
+                   and not (item.get("tag") == DICT_MAPPING_CONCEPT_TAG
+                            and item.get("action") == "create_mapping_style")]
+    if "create_safe_dict_loop" in present:
+        actions = [item for item in actions
+                   if not (item.get("tag") == DICT_MAPPING_CONCEPT_TAG
+                           and item.get("action") == "create_mapping_style")]
+    return ([item for item in actions if item.get("action") in SAFE_DICT_ACTIONS]
+            + [item for item in actions if item.get("action") not in SAFE_DICT_ACTIONS])
+
+
+# These operations rewrite the same for-loop family. When a saved style has
+# inconsistent preferences, do not let the last action silently win.
+_ITERATION_TARGET_ACTIONS = {
+    "create_direct_iteration",
+    "create_index_iteration",
+    "create_while_iteration",
+}
+_ITERATION_FAMILY_ACTIONS = _ITERATION_TARGET_ACTIONS | {
+    "create_counted_while_to_for",
+}
+
+
+def _resolve_iteration_actions(actions: list[dict]) -> list[dict]:
+    """Deduplicate iteration targets and fail closed on conflicting targets.
+
+    Counted while->for may accompany a direct/index for-loop preference:
+    they operate on different original loop types. However, any request to
+    turn for loops into while loops conflicts with either preference.
+    """
+    targets = {item.get("action") for item in actions} & _ITERATION_TARGET_ACTIONS
+    has_counted_to_for = any(
+        item.get("action") == "create_counted_while_to_for" for item in actions
+    )
+    conflicting = len(targets) > 1 or (
+        "create_while_iteration" in targets and has_counted_to_for
+    )
+    if conflicting:
+        return [
+            item for item in actions
+            if item.get("action") not in _ITERATION_FAMILY_ACTIONS
+        ]
+
+    result: list[dict] = []
+    seen: set[str] = set()
+    for item in actions:
+        action = item.get("action")
+        if action in _ITERATION_FAMILY_ACTIONS:
+            if action in seen:
+                continue
+            seen.add(action)
+        result.append(item)
+    return result
 
 
 def _get_tag_names(diff: dict, key: str) -> set[str]:
@@ -134,13 +239,42 @@ def _prefer_counted_while_to_for(diff: dict) -> bool:
     )
 
 
+def _prefer_dict_loop(diff: dict) -> bool:
+    """Detect an explicit for/dictionary saved style vs a dictcomp target.
+
+    Do not infer preference from the absence of the comprehension tag alone.
+    A for-loop and a dictionary-related tag must occur in the saved style.
+    """
+    style_syntax = _get_tag_names(diff, "style_syntax_names")
+    style_concept = _get_tag_names(diff, "style_concept_names")
+    target_syntax = _get_tag_names(diff, "target_syntax_names")
+    return (
+        DICT_COMPREHENSION_TAG not in style_syntax
+        and DICT_COMPREHENSION_TAG in target_syntax
+        and "for문" in style_syntax
+        and ("딕셔너리 리터럴" in style_syntax
+             or DICT_MAPPING_CONCEPT_TAG in style_concept)
+    )
+
+
+def _build_dict_loop_action() -> dict:
+    return {
+        "tag": DICT_MAPPING_CONCEPT_TAG,
+        "action": "create_safe_dict_loop",
+        "reason": (
+            "저장된 스타일은 for 반복문을 이용한 딕셔너리 누적 방식을 선호합니다. "
+            "안전한 단일 제너레이터 딕셔너리 컴프리헨션만 반복문으로 변환합니다."
+        ),
+    }
+
+
 def _build_filter_comprehension_action() -> dict:
     return {
         "tag": FILTER_CONCEPT_TAG,
-        "action": "create_filter_style",
+        "action": "create_safe_comprehension_collection",
         "reason": (
-            "저장된 스타일은 리스트 컴프리헨션으로 필터링하고 대상 코드는 "
-            "반복문과 append를 사용하여 안전한 패턴을 변환합니다."
+            "저장된 스타일은 필터링된 리스트 컴프리헨션을 선호합니다. "
+            "안전한 반복문과 append 패턴만 컴프리헨션으로 변환합니다."
         ),
     }
 
@@ -217,6 +351,10 @@ def build_transform_plan(diff: dict) -> dict:
     if prefer_for:
         actions.append(_build_counted_while_to_for_action())
 
+    prefer_dict_loop = _prefer_dict_loop(diff)
+    if prefer_dict_loop:
+        actions.append(_build_dict_loop_action())
+
     condition_preference = _condition_preference(diff)
     if condition_preference is not None:
         actions.append(_build_condition_action(condition_preference))
@@ -234,6 +372,17 @@ def build_transform_plan(diff: dict) -> dict:
             compare_only.append(tag_name)
             continue
 
+        # Keep the historical public tag mapping unchanged (needed by
+        # existing tests and saved styles), but select the safe implementation
+        # at plan time for these two explicit list preferences only.
+        if tag_name == "리스트 누적 방식 사용":
+            action = "create_safe_append_collection"
+        elif tag_name == LIST_COMPREHENSION_TAG:
+            action = "create_safe_comprehension_collection"
+        elif tag_name == DICT_COMPREHENSION_TAG:
+            # Public mapping remains create_dict_comprehension for compatibility.
+            action = "create_safe_dict_comprehension"
+
         # A loop-centric concept alone does not determine whether to generate
         # for or while. Do not run the new action without an explicit preference.
         if action == "create_counted_while_to_for":
@@ -243,7 +392,7 @@ def build_transform_plan(diff: dict) -> dict:
 
         if (
             prefer_filter
-            and action == "create_comprehension_collection"
+            and action in {"create_comprehension_collection", "create_safe_comprehension_collection"}
             and tag_name in FILTER_RELATED_COMPREHENSION_TAGS
         ):
             continue
@@ -270,6 +419,8 @@ def build_transform_plan(diff: dict) -> dict:
         })
 
     return {
-        "actions": _deduplicate_actions(actions),
+        "actions": _resolve_iteration_actions(
+            _resolve_dictionary_actions(_resolve_collection_actions(actions))
+        ),
         "compare_only": sorted(set(compare_only)),
     }

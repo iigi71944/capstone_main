@@ -43,6 +43,14 @@ from app.services.improvement.conditional_return_service import (
 from app.services.improvement.counted_while_to_for_service import (
     transform_counted_while_to_for,
 )
+from app.services.improvement.safe_list_comprehension_service import (
+    transform_for_append_to_list_comprehension,
+    transform_list_comprehension_to_for_append,
+)
+from app.services.improvement.safe_dict_comprehension_service import (
+    transform_for_assignment_to_dict_comprehension,
+    transform_dict_comprehension_to_for_assignment,
+)
 
 
 def _normalize_code(code: str) -> str:
@@ -83,10 +91,13 @@ def _get_transform_function(action: str):
         "create_while_iteration": transform_to_while_iteration_style,
         # New non-overlapping while-to-for feature
         "create_counted_while_to_for": transform_counted_while_to_for,
-        # Existing collections
+        # Existing collection actions remain available for other saved tags.
         "create_append_collection": transform_to_append_collection_style,
         "create_comprehension_collection": transform_to_comprehension_collection_style,
         "create_collection_style": transform_to_comprehension_collection_style,
+        # Safe, explicit list <-> comprehension actions.
+        "create_safe_append_collection": transform_list_comprehension_to_for_append,
+        "create_safe_comprehension_collection": transform_for_append_to_list_comprehension,
         # Existing aggregation
         "create_aggregation_style": transform_to_sum_aggregation_style,
         "create_sum_aggregation": transform_to_sum_aggregation_style,
@@ -94,6 +105,9 @@ def _get_transform_function(action: str):
         # Existing dictionaries
         "create_mapping_style": transform_mapping_style,
         "create_dict_comprehension": transform_to_dict_comprehension_style,
+        # Internal safe dictionary actions; public saved-tag mappings unchanged.
+        "create_safe_dict_comprehension": transform_for_assignment_to_dict_comprehension,
+        "create_safe_dict_loop": transform_dict_comprehension_to_for_assignment,
         # Existing strings
         "create_string_chain": transform_string_style,
         "create_fstring_style": transform_to_fstring_style,
@@ -136,7 +150,16 @@ def _apply_style_action(
         return code, result
 
     before = code
-    after = transform_func(code)
+    try:
+        after = transform_func(code)
+    except Exception as error:
+        result["status"] = "transformer_error"
+        _add_unique(
+            warnings,
+            f"'{tag_name}' 변환기 실행 오류({type(error).__name__})로 "
+            "이번 액션을 적용하지 않았습니다.",
+        )
+        return code, result
     if not isinstance(after, str) or not after.strip():
         result["status"] = "empty_result"
         _add_unique(
@@ -174,6 +197,7 @@ def apply_coding_style(
     code: str,
     style: dict,
     function_cases: list[dict] | None = None,
+    strict_runtime_validation: bool = False,
 ):
     """Keep the six-item API return contract and rollback semantics.
 
@@ -206,30 +230,92 @@ def apply_coding_style(
     transformation_cancelled_by_runtime = False
 
     if _is_changed(code, transformed_code) or function_cases is not None:
-        execution_verification = verify_execution_equivalence(
-            original_code=code,
-            transformed_code=transformed_code,
-            function_cases=function_cases,
-        )
+        # Preserve the public six-item return contract.  Never trust an
+        # exception, a malformed response, or a contradictory verdict.
+        verifier_malformed = False
+        try:
+            execution_verification = verify_execution_equivalence(
+                original_code=code,
+                transformed_code=transformed_code,
+                function_cases=function_cases,
+            )
+        except Exception as error:
+            verifier_malformed = True
+            execution_verification = {
+                "status": "not_verified",
+                "equivalent": None,
+                "message": f"검증기 실행 오류: {type(error).__name__}",
+                "function_verification": None,
+            }
+
+        if not isinstance(execution_verification, dict):
+            verifier_malformed = True
+            execution_verification = {
+                "status": "not_verified",
+                "equivalent": None,
+                "message": "검증기가 올바른 결과 형식을 반환하지 않았습니다.",
+                "function_verification": None,
+            }
+
         verification_status = execution_verification.get("status")
         equivalent = execution_verification.get("equivalent")
-        verification_message = execution_verification.get("message", "")
+        verification_message = str(execution_verification.get("message") or "")
+        if not isinstance(verification_status, str) or verification_status not in {"equivalent", "different", "not_verified"}:
+            verifier_malformed = True
+        if type(equivalent) not in (bool, type(None)):
+            verifier_malformed = True
+        if verification_status == "equivalent" and equivalent is not True:
+            verifier_malformed = True
+        if verification_status == "not_verified" and equivalent is not None:
+            verifier_malformed = True
 
-        if verification_status == "different" or equivalent is False:
+        if verifier_malformed:
+            # A validator that cannot be trusted is not evidence of equality.
+            execution_verification = {
+                "status": "not_verified",
+                "equivalent": None,
+                "message": (
+                    verification_message or "검증기의 결과가 불완전하거나 모순됩니다."
+                ),
+                "function_verification": None,
+            }
+            verification_status = "not_verified"
+            equivalent = None
+
+        changed = _is_changed(code, transformed_code)
+        known_difference = (
+            not verifier_malformed
+            and (verification_status == "different" or equivalent is False)
+        )
+        must_rollback = changed and (
+            known_difference
+            or verifier_malformed
+            or (strict_runtime_validation and verification_status != "equivalent")
+        )
+        if must_rollback:
             transformation_cancelled_by_runtime = True
             transformed_code = code
             applied_rules.clear()
-            _add_unique(
-                warnings,
-                "스타일 변환 전후의 실행 결과 또는 함수 "
-                "반환값에서 차이가 확인되어 전체 변환을 "
-                "취소하고 원본 코드를 유지했습니다. " + verification_message,
-            )
+            # Do not leave reverted transformations labeled as successful.
+            for item in action_results:
+                if item.get("status") == "applied":
+                    item["status"] = "rolled_back"
+            if known_difference:
+                note = (
+                    "실행 결과 또는 함수 반환값의 차이가 확인되어 "
+                    "전체 변환을 취소하고 원본을 유지했습니다. "
+                )
+            else:
+                note = (
+                    "실행 동등성이 검증되지 않아 전체 변환을 취소하고 "
+                    "원본을 유지했습니다. "
+                )
+            _add_unique(warnings, note + verification_message)
         elif verification_status == "not_verified":
             _add_unique(
                 warnings,
-                "스타일 변환은 수행했지만 변환 전후 코드의 "
-                "실행 결과 동일성을 확인하지 못했습니다. " + verification_message,
+                "실행 동등성을 검증하지 못했습니다. 변환 결과는 검증되지 않은 "
+                "코드이므로 적용 전 확인이 필요합니다. " + verification_message,
             )
 
     final_diff = compare_after_transform(style=style, transformed_code=transformed_code)
@@ -277,6 +363,10 @@ def apply_coding_style(
         execution_summary = (
             "실행 결과 또는 함수 반환값의 차이가 확인되어 "
             "전체 변환을 취소하고 원본 코드를 유지했습니다."
+        )
+    elif transformation_cancelled_by_runtime:
+        execution_summary = (
+            "실행 동등성을 확인할 수 없어 전체 변환을 취소하고 원본 코드를 유지했습니다."
         )
     else:
         execution_summary = (
