@@ -7,6 +7,26 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # Batch 3: narrow method decorators, next() guards, and operator calls.
+    "데코레이터 사용": "create_safe_method_decorator",
+    "방어적 프로그래밍 구조": "create_safe_next_guard",
+    "함수 호출 중심 구조": "create_safe_operator_call",
+    # A safe lambda-assignment -> explicit def transformer already exists.
+    "함수 정의": "create_safe_lambda_function",
+    # Conservative, pattern-limited structural style transformations (batch 2).
+    "예외 처리": "create_safe_explicit_exception",
+    "예외 처리 포함 구조": "create_safe_explicit_exception",
+    "함수 매개변수 활용 구조": "create_safe_keyword_call",
+    "객체 접근 중심 구조": "create_safe_direct_attribute",
+
+    # New conservative, pattern-limited transformations.
+    "세트 컴프리헨션": "create_safe_set_comprehension",
+    "lambda식": "create_safe_lambda_expression",
+    "타입 힌트 사용": "create_safe_local_annotation",
+    "타입 명시 코드 구조": "create_safe_local_annotation",
+    "패턴 매칭": "create_safe_pattern_matching",
+    "패턴 매칭 구조": "create_safe_pattern_matching",
+
     # Existing iteration styles: only transform for-loops.
     "직접 반복 사용": "create_direct_iteration",
     "인덱스 기반 반복 사용": "create_index_iteration",
@@ -53,24 +73,10 @@ CREATE_ACTION_BY_TAG: dict[str, str] = {
 }
 
 PLANNED_TAG_FAMILY: dict[str, str] = {
-    "세트 컴프리헨션": "set_comprehension",
-    "lambda식": "lambda_expression",
-    "객체 접근 중심 구조": "object_structure",
     "단일 책임 함수 구조": "function_decomposition",
-    "데코레이터 사용": "decorator_structure",
     "모듈 의존 구조": "module_structure",
-    "방어적 프로그래밍 구조": "defensive_structure",
-    "예외 처리": "exception_structure",
-    "예외 처리 포함 구조": "exception_structure",
     "클래스 정의": "class_structure",
     "클래스 중심 코드 구조": "class_structure",
-    "타입 명시 코드 구조": "type_annotation",
-    "타입 힌트 사용": "type_annotation",
-    "패턴 매칭": "pattern_matching",
-    "패턴 매칭 구조": "pattern_matching",
-    "함수 매개변수 활용 구조": "parameter_structure",
-    "함수 정의": "function_decomposition",
-    "함수 호출 중심 구조": "function_decomposition",
 }
 
 PLANNED_FAMILY_PRIORITY: dict[str, int] = {

@@ -332,10 +332,62 @@ def _build_counted_while_to_for_action() -> dict:
     }
 
 
+_NEW_FAMILY_PAIRS = {
+    "decorator": {"create_safe_method_decorator", "create_safe_method_decorator_assignment"},
+    "guard": {"create_safe_next_guard", "create_safe_next_default"},
+    "operator": {"create_safe_operator_call", "create_safe_arithmetic_expression"},
+    "exception": {"create_safe_explicit_exception", "create_safe_exception_suppress"},
+    "parameter": {"create_safe_keyword_call", "create_safe_positional_call"},
+    "attribute": {"create_safe_direct_attribute", "create_safe_getattr_call"},
+    "set": {"create_safe_set_comprehension", "create_safe_set_loop"},
+    "lambda": {"create_safe_lambda_expression", "create_safe_lambda_function"},
+    "pattern": {"create_safe_pattern_matching", "create_safe_pattern_if"},
+    "annotation": {"create_safe_local_annotation", "create_safe_local_deannotation"},
+}
+
+
+def _resolve_new_family_actions(actions: list[dict]) -> list[dict]:
+    """One direction per syntax family; remove duplicate concept/syntax action."""
+    targets = {item.get("action") for item in actions}
+    conflicting = set().union(*(
+        family for family in _NEW_FAMILY_PAIRS.values() if len(family & targets) > 1
+    ))
+    result: list[dict] = []
+    seen: set[str] = set()
+    new_actions = set().union(*_NEW_FAMILY_PAIRS.values())
+    for item in actions:
+        action = item.get("action")
+        if action in conflicting:
+            continue
+        if action in new_actions:
+            if action in seen:
+                continue
+            seen.add(action)
+        result.append(item)
+    return result
+
+
+def _explicit_reverse_actions(diff: dict) -> list[dict]:
+    """Request a reverse transform only when a saved style explicitly
+    contains a compatible target form. Missing tags alone are insufficient.
+    """
+    s = _get_tag_names(diff, "style_syntax_names")
+    sc = _get_tag_names(diff, "style_concept_names")
+    t = _get_tag_names(diff, "target_syntax_names")
+    reverse = []
+    if "for문" in s and "상태 변경 중심 구조" in sc and "세트 컴프리헨션" in t and "세트 컴프리헨션" not in s:
+        reverse.append({"tag":"상태 변경 중심 구조", "action":"create_safe_set_loop", "reason":"저장 스타일은 for/set.add 누적 구조를 선호합니다."})
+    if "함수 정의" in s and "lambda식" in t and "lambda식" not in s:
+        reverse.append({"tag":"함수 정의", "action":"create_safe_lambda_function", "reason":"저장 스타일은 명시적 함수 정의를 선호합니다."})
+    if "if문" in s and "패턴 매칭" in t and "패턴 매칭" not in s:
+        reverse.append({"tag":"if문", "action":"create_safe_pattern_if", "reason":"저장 스타일은 조건문 분기 형태를 선호합니다."})
+    return reverse
+
+
 def build_transform_plan(diff: dict) -> dict:
     missing_syntax_tags = diff.get("missing_syntax_tags", [])
     missing_concept_tags = diff.get("missing_concept_tags", [])
-    actions: list[dict] = []
+    actions: list[dict] = _explicit_reverse_actions(diff)
     compare_only: list[str] = []
 
     prefer_filter = _prefer_filtered_comprehension(diff)
@@ -419,8 +471,8 @@ def build_transform_plan(diff: dict) -> dict:
         })
 
     return {
-        "actions": _resolve_iteration_actions(
+        "actions": _resolve_new_family_actions(_resolve_iteration_actions(
             _resolve_dictionary_actions(_resolve_collection_actions(actions))
-        ),
+        )),
         "compare_only": sorted(set(compare_only)),
     }

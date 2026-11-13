@@ -53,6 +53,37 @@ from app.services.improvement.safe_dict_comprehension_service import (
 )
 
 
+from app.services.improvement.safe_set_comprehension_service import (
+    transform_for_add_to_set_comprehension,
+    transform_set_comprehension_to_for_add,
+)
+from app.services.improvement.safe_syntax_patterns_service import (
+    transform_lambda_to_def,
+    transform_def_to_lambda,
+    transform_if_to_match,
+    transform_match_to_if,
+    transform_add_local_type_hints,
+    transform_remove_local_type_hints,
+)
+
+from app.services.improvement.safe_structural_patterns_service import (
+    transform_suppress_to_try,
+    transform_try_to_suppress,
+    transform_positional_to_keyword_call,
+    transform_keyword_to_positional_call,
+    transform_getattr_to_attribute,
+    transform_attribute_to_getattr,
+)
+from app.services.improvement.safe_remaining_patterns_service import (
+    transform_assignment_to_decorator,
+    transform_decorator_to_assignment,
+    transform_next_default_to_try,
+    transform_try_to_next_default,
+    transform_arithmetic_to_operator_call,
+    transform_operator_call_to_arithmetic,
+)
+
+
 def _normalize_code(code: str) -> str:
     try:
         return ast.unparse(ast.parse(code)).strip()
@@ -85,6 +116,29 @@ def _format_tag_list(tags: list[dict]) -> str:
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # Batch 3 conservative transforms and their reverse callables.
+        "create_safe_method_decorator": transform_assignment_to_decorator,
+        "create_safe_method_decorator_assignment": transform_decorator_to_assignment,
+        "create_safe_next_guard": transform_next_default_to_try,
+        "create_safe_next_default": transform_try_to_next_default,
+        "create_safe_operator_call": transform_arithmetic_to_operator_call,
+        "create_safe_arithmetic_expression": transform_operator_call_to_arithmetic,
+        # Safe structural-pattern transforms (batch 2).
+        "create_safe_explicit_exception": transform_suppress_to_try,
+        "create_safe_exception_suppress": transform_try_to_suppress,
+        "create_safe_keyword_call": transform_positional_to_keyword_call,
+        "create_safe_positional_call": transform_keyword_to_positional_call,
+        "create_safe_direct_attribute": transform_getattr_to_attribute,
+        "create_safe_getattr_call": transform_attribute_to_getattr,
+        # Safe, pattern-specific syntax families.
+        "create_safe_set_comprehension": transform_for_add_to_set_comprehension,
+        "create_safe_set_loop": transform_set_comprehension_to_for_add,
+        "create_safe_lambda_expression": transform_def_to_lambda,
+        "create_safe_lambda_function": transform_lambda_to_def,
+        "create_safe_pattern_matching": transform_if_to_match,
+        "create_safe_pattern_if": transform_match_to_if,
+        "create_safe_local_annotation": transform_add_local_type_hints,
+        "create_safe_local_deannotation": transform_remove_local_type_hints,
         # Existing iterations
         "create_direct_iteration": transform_to_direct_iteration_style,
         "create_index_iteration": transform_to_index_iteration_style,

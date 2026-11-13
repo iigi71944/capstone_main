@@ -229,9 +229,12 @@ class StylePlanAuditTests(unittest.TestCase):
                                              missing_concept=["리스트 누적 방식 사용"]))
         self.assertTrue(any("리스트" in s for s in report["conflict_warnings"]))
 
-    def test_report_planned_tag_as_compare_only_in_plan(self):
+    def test_report_implemented_set_tag_is_linked(self):
         report = audit_saved_style_plan(diff(missing_syntax=["세트 컴프리헨션"]))
-        self.assertIn("세트 컴프리헨션", report["compare_only"])
+        self.assertNotIn("세트 컴프리헨션", report["compare_only"])
+        self.assertIn("create_safe_set_comprehension", [
+            a["action"] for a in report["selected_actions"]
+        ])
 
     def test_empty_report(self):
         report = audit_saved_style_plan(diff())
