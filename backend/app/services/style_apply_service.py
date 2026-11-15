@@ -7,6 +7,8 @@ from app.services.style_diff_service import (
     compare_style_with_target_code,
 )
 from app.services.style_transform_plan_service import build_transform_plan
+# CAPSTONE_BATCH14_CONFLICT_IMPORT_V1
+from app.services.style_action_conflict_service import mark_reverted_actions
 from app.services.style_action_outcome_service import (
     summarize_action_outcomes,
     format_action_outcome_summary,
@@ -384,12 +386,16 @@ def apply_coding_style(
     applied_rules: list[str] = []
     warnings: list[str] = []
     action_results: list[dict] = []
+    # CAPSTONE_BATCH14_CONFLICT_LEDGER_V1: record each attempted action.
+    action_snapshots: list[str] = [code]
+    action_rules_by_step: list[list[str]] = []
 
     initial_diff = compare_style_with_target_code(style=style, code=code)
     transform_plan = build_transform_plan(initial_diff)
     transformed_code = code
 
     for action_item in transform_plan.get("actions", []):
+        rule_start = len(applied_rules)
         transformed_code, action_result = _apply_style_action(
             code=transformed_code,
             action_item=action_item,
@@ -397,6 +403,19 @@ def apply_coding_style(
             warnings=warnings,
         )
         action_results.append(action_result)
+        action_snapshots.append(transformed_code)
+        action_rules_by_step.append(applied_rules[rule_start:])
+
+    # CAPSTONE_BATCH14_CONFLICT_RECONCILE_V1: an action can undo earlier
+    # actions even when a later action creates a nonempty final difference.
+    # Only complete checkpoint reversions are detectable without re-execution.
+    if mark_reverted_actions(action_snapshots, action_results, normalize=_normalize_code):
+        applied_rules[:] = [
+            note
+            for index, notes in enumerate(action_rules_by_step)
+            if action_results[index].get('status') == 'applied'
+            for note in notes
+        ]
 
     # CAPSTONE_LARGE_CODE_SCOPES_V1: independent local plans for long Python files.
     # Preserve the existing whole-program actions, formatting pipeline and API.
@@ -477,6 +496,10 @@ def apply_coding_style(
         if type(equivalent) not in (bool, type(None)):
             verifier_malformed = True
         if verification_status == "equivalent" and equivalent is not True:
+            verifier_malformed = True
+        # CAPSTONE_BATCH14_CONTRADICTORY_VERDICT_V1: "different" must not
+        # claim equivalence=True (or omit equivalence) in the API result.
+        if verification_status == "different" and equivalent is not False:
             verifier_malformed = True
         if verification_status == "not_verified" and equivalent is not None:
             verifier_malformed = True
