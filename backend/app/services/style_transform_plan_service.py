@@ -551,6 +551,29 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "저장된 기존 메트릭으로 확인한 스타일 선호를 제한된 안전 패턴에 적용합니다.",
             })
 
+    # CAPSTONE_UNMAPPED_BATCH12_PLAN_V1: infer preference only from preexisting
+    # persisted metrics. No saved style/schema/frontend modifications.
+    saved_b12 = _get_style_metrics(diff)
+    target_b12 = _get_target_metrics(diff)
+    safe_prefs_b12 = (
+        ("continue문", "create_safe_guard_continue", "continue_count",
+         ("loop_count", "if_count")),
+        ("식별 비교", "create_safe_literal_identity", "identity_compare_count",
+         ("compare_count", "none_count")),
+        ("산술 연산", "create_safe_arithmetic_expression", "bin_op_count",
+         ("call_count", "attribute_count", "import_count")),
+    )
+    for tag_b12, action_b12, preferred_b12, evidence_b12 in safe_prefs_b12:
+        if (_metric_count(saved_b12, preferred_b12) > 0
+                and _metric_count(target_b12, preferred_b12) == 0
+                and all(_metric_count(target_b12, key) > 0 for key in evidence_b12)
+                and not any(item.get("action") == action_b12 for item in actions)):
+            actions.append({
+                "tag": tag_b12,
+                "action": action_b12,
+                "reason": "기존 저장 메트릭의 스타일 선호가 확인된 안전한 국소 패턴만 변환합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:

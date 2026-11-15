@@ -181,9 +181,18 @@ from app.services.improvement.safe_unmapped_patterns_batch11_service import (
     transform_to_safe_list_slice_style,
 )
 
+# CAPSTONE_UNMAPPED_BATCH12_IMPORT_V1
+from app.services.improvement.safe_unmapped_patterns_batch12_service import (
+    transform_to_safe_guard_continue_style,
+    transform_to_safe_literal_identity_style,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_UNMAPPED_BATCH12_MAP_V1
+        "create_safe_guard_continue": transform_to_safe_guard_continue_style,
+        "create_safe_literal_identity": transform_to_safe_literal_identity_style,
         # CAPSTONE_UNMAPPED_BATCH11_MAP_V1
         "create_safe_literal_len": transform_to_safe_literal_len_style,
         "create_safe_literal_zip": transform_to_safe_literal_zip_style,

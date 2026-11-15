@@ -42,7 +42,10 @@ class Batch11WiringTests(unittest.TestCase):
                 self.assertEqual(get_create_action_for_tag(name), action)
                 self.assertTrue(callable(_get_transform_function(action)))
 
-    def test_unique_registry_72_and_30_remaining(self):
+    def test_unique_registry_preserves_batch11_baseline(self):
+        # This is a Batch 11 regression test. Later batches may add links;
+        # ensure no existing Batch 11 registration was removed instead of
+        # freezing the registry size at 72 indefinitely.
         tree = ast.parse(Path(mapping.__file__).read_text(encoding='utf-8-sig'))
         registers = [node.value for node in tree.body
                      if isinstance(node, ast.AnnAssign)
@@ -51,8 +54,12 @@ class Batch11WiringTests(unittest.TestCase):
         self.assertEqual(len(registers), 1)
         keys = [node.value for node in registers[0].keys]
         self.assertEqual(len(keys), len(set(keys)))
-        self.assertEqual(len(keys), 72)
-        self.assertEqual(len(mapping.COMPARE_ONLY_TAGS), 30)
+        self.assertGreaterEqual(len(keys), 72)
+        self.assertEqual(set(keys), set(mapping.CREATE_ACTION_BY_TAG))
+        all_tags = set(mapping.SYNTAX_TAG_RULES) | set(mapping.CONCEPT_TAG_RULES)
+        self.assertTrue(set(keys) <= all_tags)
+        self.assertEqual(mapping.COMPARE_ONLY_TAGS, all_tags - set(keys))
+        self.assertEqual(len(keys) + len(mapping.COMPARE_ONLY_TAGS), len(all_tags))
 
     def test_registry_audit_ok(self):
         self.assertEqual(audit_style_registry()['issues'], [])
