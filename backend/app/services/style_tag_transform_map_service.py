@@ -7,6 +7,12 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # Batch 4: conservative, executable transformations for the four
+    # previously planned architectural tag families.
+    "단일 책임 함수 구조": "create_safe_validation_helper",
+    "모듈 의존 구조": "create_safe_math_module_import",
+    "클래스 정의": "create_safe_explicit_class",
+    "클래스 중심 코드 구조": "create_safe_class_methods",
     # Batch 3: narrow method decorators, next() guards, and operator calls.
     "데코레이터 사용": "create_safe_method_decorator",
     "방어적 프로그래밍 구조": "create_safe_next_guard",
@@ -72,12 +78,7 @@ CREATE_ACTION_BY_TAG: dict[str, str] = {
     "함수 중심 코드 구조": "create_function_structure",
 }
 
-PLANNED_TAG_FAMILY: dict[str, str] = {
-    "단일 책임 함수 구조": "function_decomposition",
-    "모듈 의존 구조": "module_structure",
-    "클래스 정의": "class_structure",
-    "클래스 중심 코드 구조": "class_structure",
-}
+PLANNED_TAG_FAMILY: dict[str, str] = {}
 
 PLANNED_FAMILY_PRIORITY: dict[str, int] = {
     "set_comprehension": 1,

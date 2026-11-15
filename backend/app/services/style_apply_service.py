@@ -7,6 +7,11 @@ from app.services.style_diff_service import (
     compare_style_with_target_code,
 )
 from app.services.style_transform_plan_service import build_transform_plan
+from app.services.style_action_outcome_service import (
+    summarize_action_outcomes,
+    format_action_outcome_summary,
+    format_cancelled_action_warnings,
+)
 from app.services.execution_validation_service import verify_execution_equivalence
 from app.services.improvement.iteration_style_service import (
     transform_to_direct_iteration_style,
@@ -84,6 +89,16 @@ from app.services.improvement.safe_remaining_patterns_service import (
 )
 
 
+from app.services.improvement.safe_architecture_patterns_service import (
+    transform_extract_validation_helper,
+    transform_inline_validation_helper,
+    transform_from_math_to_module,
+    transform_math_module_to_from,
+    transform_type_to_class,
+    transform_type_to_class_with_methods,
+)
+
+
 def _normalize_code(code: str) -> str:
     try:
         return ast.unparse(ast.parse(code)).strip()
@@ -117,6 +132,13 @@ def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
         # Batch 3 conservative transforms and their reverse callables.
+        # Batch 4: narrow architecture pattern transforms.
+        "create_safe_validation_helper": transform_extract_validation_helper,
+        "create_safe_inline_validation": transform_inline_validation_helper,
+        "create_safe_math_module_import": transform_from_math_to_module,
+        "create_safe_math_member_import": transform_math_module_to_from,
+        "create_safe_explicit_class": transform_type_to_class,
+        "create_safe_class_methods": transform_type_to_class_with_methods,
         "create_safe_method_decorator": transform_assignment_to_decorator,
         "create_safe_method_decorator_assignment": transform_decorator_to_assignment,
         "create_safe_next_guard": transform_next_default_to_try,
@@ -243,7 +265,7 @@ def _apply_style_action(
         return code, result
 
     result["status"] = "applied"
-    applied_rules.append(f"{reason} 적용된 변환 액션: {action}")
+    applied_rules.append(f"적용 완료: {reason} 적용된 변환 액션: {action}")
     return after, result
 
 
@@ -273,6 +295,40 @@ def apply_coding_style(
             warnings=warnings,
         )
         action_results.append(action_result)
+
+    # CAPSTONE_LARGE_CODE_SCOPES_V1: independent local plans for long Python files.
+    # Preserve the existing whole-program actions, formatting pipeline and API.
+    scoped_changes = False
+    try:
+        from app.services.style_large_code_service import apply_scoped_style_to_large_code
+        locally_transformed, scoped_applied, scoped_warnings = apply_scoped_style_to_large_code(
+            code=transformed_code,
+            style=style,
+            compare_style=compare_style_with_target_code,
+            build_plan=build_transform_plan,
+            get_transformer=_get_transform_function,
+        )
+        for note in scoped_warnings:
+            _add_unique(warnings, note)
+        if scoped_applied and locally_transformed != transformed_code:
+            transformed_code = locally_transformed
+            scoped_changes = True
+            for item in scoped_applied:
+                action_results.append({
+                    "tag": item.get("tag", ""),
+                    "action": item.get("action", ""),
+                    "status": "applied",
+                })
+                applied_rules.append(
+                    "적용 완료: 긴 코드의 " + item.get("scope", "함수")
+                    + " 범위에 " + item.get("action", "") + " 변환"
+                )
+    except Exception as error:
+        _add_unique(
+            warnings,
+            "긴 코드의 함수·메서드별 추가 변환 중 오류(" + type(error).__name__
+            + ")가 발생하여 해당 추가 단계를 생략했습니다.",
+        )
 
     if _normalize_code(code) == _normalize_code(transformed_code):
         transformed_code = code
@@ -344,7 +400,8 @@ def apply_coding_style(
         must_rollback = changed and (
             known_difference
             or verifier_malformed
-            or (strict_runtime_validation and verification_status != "equivalent")
+            or ((strict_runtime_validation or scoped_changes)
+                and verification_status != "equivalent")
         )
         if must_rollback:
             transformation_cancelled_by_runtime = True
@@ -371,6 +428,18 @@ def apply_coding_style(
                 "실행 동등성을 검증하지 못했습니다. 변환 결과는 검증되지 않은 "
                 "코드이므로 적용 전 확인이 필요합니다. " + verification_message,
             )
+
+    # A later action can undo an earlier action without a verifier rollback.
+    # Report only transformations actually present in the final source.
+    if not _is_changed(code, transformed_code) and had_successful_transform:
+        applied_rules.clear()
+        for item in action_results:
+            if item.get("status") == "applied":
+                item["status"] = "cancelled_net_zero"
+
+    action_outcomes = summarize_action_outcomes(action_results)
+    for note in format_cancelled_action_warnings(action_outcomes):
+        _add_unique(warnings, note)
 
     final_diff = compare_after_transform(style=style, transformed_code=transformed_code)
     compare_only_tags = transform_plan.get("compare_only", [])
@@ -429,6 +498,7 @@ def apply_coding_style(
         )
 
     summary = (
+        format_action_outcome_summary(action_outcomes) + " "
         "저장된 코딩 스타일의 문법 태그와 개념 태그를 "
         "목표 상태로 삼아 스타일 적용을 수행했습니다. "
         f"{execution_summary} "

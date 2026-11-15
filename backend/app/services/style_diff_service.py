@@ -1,3 +1,4 @@
+from app.services.style_analysis_comment_filter_service import without_analysis_comments
 
 from app.services.parser_service import parse_code
 from app.services.syntax_tag_service import extract_syntax_tags
@@ -49,7 +50,7 @@ def _get_style_metrics(style: dict) -> dict:
 
 
 def analyze_code_style(code: str) -> dict:
-    tree = parse_code(code)
+    tree = without_analysis_comments(parse_code(code))
 
     syntax_tags = extract_syntax_tags(tree)
     metrics = calculate_metrics(tree)

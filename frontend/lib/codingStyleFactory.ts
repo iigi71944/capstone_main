@@ -206,6 +206,9 @@ export function buildCodingStyleFromAnalysis(
 
     metrics: analysis.metrics,
 
+    // CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2: 코드에서 추출한 서식 취향을 함께 저장합니다.
+    formatting_style: analysis.formatting_style,
+
     created_at: options.created_at,
 
     is_shared: false,

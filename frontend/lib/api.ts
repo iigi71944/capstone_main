@@ -111,3 +111,27 @@ export async function applyCodingStyle(
 
   return data;
 }
+
+
+// CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2: 원래 analyzeCode와 동일 서버에 서식 분석을 요청합니다.
+export async function analyzeFormattingStyle(
+  code: string
+): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/formatting-style`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw new Error("서식 분석 요청에 실패했습니다.");
+  const data: unknown = await response.json();
+  if (!data || typeof data !== "object") {
+    throw new Error("서식 분석 결과가 올바르지 않습니다.");
+  }
+  const result = data as { success?: boolean; formatting_style?: unknown };
+  if (result.success !== true || !result.formatting_style ||
+      typeof result.formatting_style !== "object" ||
+      Array.isArray(result.formatting_style)) {
+    throw new Error("서식 분석이 정상적으로 완료되지 않았습니다.");
+  }
+  return result.formatting_style as Record<string, unknown>;
+}

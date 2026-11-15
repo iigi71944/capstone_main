@@ -1,3 +1,4 @@
+// CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2: 분석 및 저장 서식 프로필 타입
 
 export type SyntaxTag = {
   tag: string;
@@ -23,6 +24,7 @@ export type AnalysisResponse = {
   syntax_tags: SyntaxTag[];
   concept_tags: ConceptTag[];
   metrics: Record<string, number>;
+  formatting_style?: Record<string, unknown>;
   suggestions: Suggestion[];
   error?: string | null;
 };
@@ -134,6 +136,7 @@ export interface CodingStyle {
   syntax_tags: SyntaxTag[];
   concept_tags: ConceptTag[];
   metrics: Record<string, number>;
+  formatting_style?: Record<string, unknown>;
   created_at: string;
 }
 

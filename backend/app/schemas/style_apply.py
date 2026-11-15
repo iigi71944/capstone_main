@@ -24,6 +24,9 @@ class CodingStylePayload(BaseModel):
     metrics: Dict[str, int]
     created_at: str
 
+    # CAPSTONE_SAVED_FORMAT_APPLY_V1: 기존 스타일 JSON의 서식 프로필을 보존
+    formatting_style: Optional[Dict[str, Any]] = None
+
 
 # ============================================================
 # Function test request

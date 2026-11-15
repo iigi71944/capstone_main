@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { analyzeCode } from "../lib/api";
+// CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2
+import { analyzeCode, analyzeFormattingStyle } from "../lib/api";
 import {
   buildCodingStyleFromAnalysis,
   createCodingStyleIdentity,
@@ -61,8 +62,11 @@ export function useCodeAnalysis(savedStyleCount: number) {
         return;
       }
 
+      // 코드 분석이 성공한 경우에만 서식을 추가 분석합니다.
+      const formattingStyle = await analyzeFormattingStyle(code);
+      if (requestVersion.current !== requestId) return;
       setIdentity(createCodingStyleIdentity());
-      setResult(data);
+      setResult({ ...data, formatting_style: formattingStyle });
     } catch (error) {
       if (requestVersion.current !== requestId) return;
       console.error("분석 오류:", error);
