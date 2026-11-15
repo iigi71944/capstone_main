@@ -574,6 +574,25 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "기존 저장 메트릭의 스타일 선호가 확인된 안전한 국소 패턴만 변환합니다.",
             })
 
+    # CAPSTONE_UNMAPPED_BATCH13_PLAN_V1: use existing persisted metrics only.
+    # No changes to the 19 saved syntax preferences, APIs or frontend.
+    saved_b13 = _get_style_metrics(diff)
+    target_b13 = _get_target_metrics(diff)
+    for tag_b13, metric_b13, action_b13 in (
+        ("문자열 리터럴", "string_literal_count", "create_safe_string_literal"),
+        ("숫자 리터럴", "number_literal_count", "create_safe_number_literal"),
+        ("불리언 리터럴", "boolean_literal_count", "create_safe_boolean_literal"),
+    ):
+        if (_metric_count(saved_b13, metric_b13) > 0
+                and _metric_count(target_b13, metric_b13) == 0
+                and _metric_count(target_b13, "call_count") > 0
+                and not any(item.get("action") == action_b13 for item in actions)):
+            actions.append({
+                "tag": tag_b13,
+                "action": action_b13,
+                "reason": "저장된 기존 리터럴 메트릭을 반영하되 기본 내장 함수의 상수 호출만 변환합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -581,6 +600,15 @@ def build_transform_plan(diff: dict) -> dict:
         action = get_create_action_for_tag(tag_name)
         if action is None:
             compare_only.append(tag_name)
+            continue
+
+        # CAPSTONE_UNMAPPED_BATCH13_METRIC_ONLY_V1: never select these actions
+        # from a missing-tag record alone; only the gated metrics above may.
+        if action in {
+            "create_safe_string_literal",
+            "create_safe_number_literal",
+            "create_safe_boolean_literal",
+        }:
             continue
 
         # Keep the historical public tag mapping unchanged (needed by

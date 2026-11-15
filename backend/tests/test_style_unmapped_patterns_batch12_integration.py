@@ -49,9 +49,14 @@ class Batch12IntegrationTests(unittest.TestCase):
              and node.target.id == 'CREATE_ACTION_BY_TAG']
         self.assertEqual(len(d), 1)
         keys = [node.value for node in d[0].keys]
-        self.assertEqual(len(keys), 75)
+        # CAPSTONE_UNMAPPED_BATCH13_COMPAT12_V1: retain Batch 12 baseline.
+        self.assertGreaterEqual(len(keys), 75)
         self.assertEqual(len(keys), len(set(keys)))
-        self.assertEqual(len(mapping.COMPARE_ONLY_TAGS), 27)
+        self.assertEqual(set(keys), set(mapping.CREATE_ACTION_BY_TAG))
+        all_tags = set(mapping.SYNTAX_TAG_RULES) | set(mapping.CONCEPT_TAG_RULES)
+        self.assertTrue(set(keys) <= all_tags)
+        self.assertEqual(mapping.COMPARE_ONLY_TAGS, all_tags - set(keys))
+        self.assertEqual(len(keys) + len(mapping.COMPARE_ONLY_TAGS), len(all_tags))
 
     def test_registry_audit_no_issues(self):
         self.assertEqual(audit_style_registry()['issues'], [])

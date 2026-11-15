@@ -7,6 +7,10 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_UNMAPPED_BATCH13_REGISTRY_V1: literal builtin calls only.
+    "문자열 리터럴": "create_safe_string_literal",
+    "숫자 리터럴": "create_safe_number_literal",
+    "불리언 리터럴": "create_safe_boolean_literal",
     # CAPSTONE_UNMAPPED_BATCH12_REGISTRY_V1: three verified constrained tags.
     "continue문": "create_safe_guard_continue",
     "식별 비교": "create_safe_literal_identity",

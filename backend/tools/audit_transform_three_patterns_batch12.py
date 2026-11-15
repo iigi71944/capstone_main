@@ -104,10 +104,11 @@ def main() -> int:
         and not summary['registry_issues']
         and not summary['audit_issues']
         and summary['tags'] == 102
-        and summary['linked'] == 75
-        and summary['compare_only'] == 27
+        # CAPSTONE_UNMAPPED_BATCH13_COMPAT_AUDIT12_V1: earlier triplets remain verified.
+        and summary['linked'] >= 75
+        and summary['compare_only'] == summary['tags'] - summary['linked']
         and summary['by_status']['three_patterns_verified'] == 75
-        and summary['by_status']['three_patterns_not_yet_proven'] == 0
+        and summary['by_status']['three_patterns_not_yet_proven'] == summary['linked'] - 75
         and summary['by_status']['three_pattern_tests_failed'] == 0
         and summary['by_status']['action_missing'] == 0
         and summary['representative_tests'] == 225
