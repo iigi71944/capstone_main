@@ -66,6 +66,9 @@ export const syntaxTagDocs = [
 ];
 
 export const conceptTagDocs = [
+  // CAPSTONE_FORMAT_CONCEPT_DOCS_V1
+  { tag: "들여쓰기", desc: "원본 Python 코드에서 관측한 공백·탭 종류, 들여쓰기 간격과 사용 분포를 저장합니다." },
+  { tag: "줄 바꿈", desc: "문장별 줄 배치, 빈 줄 분포, 괄호 안 줄 바꿈 및 LF/CRLF 정보를 저장합니다." },
   { tag: "함수 중심 코드 구조", desc: "함수를 중심으로 기능을 구성하는 코딩 스타일입니다." },
   { tag: "클래스 중심 코드 구조", desc: "클래스를 중심으로 데이터와 기능을 구성하는 스타일입니다." },
   { tag: "절차형 코드 스타일", desc: "함수나 클래스 정의 없이 명령문을 순차적으로 작성하는 스타일입니다." },

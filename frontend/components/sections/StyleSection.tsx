@@ -203,13 +203,24 @@ export default function StyleSection({
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1">
+                      {/* CAPSTONE_FORMAT_CONCEPT_LIST_V1 */}
                       {style.concept_tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-medium"
-                        >
-                          {tag.tag}
-                        </span>
+                        tag.details ? (
+                          <details key={idx} className="w-full rounded-lg border border-purple-200 bg-white p-2 text-xs">
+                            <summary className="cursor-pointer font-semibold text-purple-800">{tag.tag} · 상세 정보</summary>
+                            {tag.reason && <p className="mt-2 text-slate-700">{tag.reason}</p>}
+                            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] text-slate-600">
+                              {JSON.stringify(tag.details, null, 2)}
+                            </pre>
+                          </details>
+                        ) : (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-medium"
+                          >
+                            {tag.tag}
+                          </span>
+                        )
                       ))}
                     </div>
                   )}

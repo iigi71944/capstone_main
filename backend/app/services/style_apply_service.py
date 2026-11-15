@@ -9,6 +9,8 @@ from app.services.style_diff_service import (
 from app.services.style_transform_plan_service import build_transform_plan
 # CAPSTONE_BATCH14_CONFLICT_IMPORT_V1
 from app.services.style_action_conflict_service import mark_reverted_actions
+# CAPSTONE_BATCH15_PARTIAL_CONFLICT_IMPORT_V1
+from app.services.style_partial_conflict_service import mark_partially_reverted_actions
 from app.services.style_action_outcome_service import (
     summarize_action_outcomes,
     format_action_outcome_summary,
@@ -406,10 +408,17 @@ def apply_coding_style(
         action_snapshots.append(transformed_code)
         action_rules_by_step.append(applied_rules[rule_start:])
 
-    # CAPSTONE_BATCH14_CONFLICT_RECONCILE_V1: an action can undo earlier
-    # actions even when a later action creates a nonempty final difference.
-    # Only complete checkpoint reversions are detectable without re-execution.
-    if mark_reverted_actions(action_snapshots, action_results, normalize=_normalize_code):
+    # CAPSTONE_BATCH14_CONFLICT_RECONCILE_V1: preserve whole-file reversions.
+    full_cancellations = mark_reverted_actions(
+        action_snapshots, action_results, normalize=_normalize_code
+    )
+    # CAPSTONE_BATCH15_PARTIAL_CONFLICT_LEDGER_V1: only stable, uniquely named
+    # top-level code scopes can be reconciled independently. Unknown scopes
+    # retain Batch 14's verdict and never trigger speculative cancellation.
+    partial_cancellations = mark_partially_reverted_actions(
+        action_snapshots, action_results
+    )
+    if full_cancellations or partial_cancellations:
         applied_rules[:] = [
             note
             for index, notes in enumerate(action_rules_by_step)

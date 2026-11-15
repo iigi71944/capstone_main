@@ -2,6 +2,7 @@
 import type {
   AnalysisResponse,
   CodingStyle,
+  ConceptTag,
   FunctionTestCase,
   StyleApplyRequest,
   StyleApplyResponse,
@@ -114,9 +115,10 @@ export async function applyCodingStyle(
 
 
 // CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2: 원래 analyzeCode와 동일 서버에 서식 분석을 요청합니다.
+// CAPSTONE_FORMAT_CONCEPT_FETCH_V1
 export async function analyzeFormattingStyle(
   code: string
-): Promise<Record<string, unknown>> {
+): Promise<{ formatting_style: Record<string, unknown>; concept_tags: ConceptTag[] }> {
   const response = await fetch(`${API_BASE_URL}/api/v1/formatting-style`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -127,11 +129,20 @@ export async function analyzeFormattingStyle(
   if (!data || typeof data !== "object") {
     throw new Error("서식 분석 결과가 올바르지 않습니다.");
   }
-  const result = data as { success?: boolean; formatting_style?: unknown };
+  const result = data as { success?: boolean; formatting_style?: unknown; concept_tags?: unknown };
   if (result.success !== true || !result.formatting_style ||
       typeof result.formatting_style !== "object" ||
       Array.isArray(result.formatting_style)) {
     throw new Error("서식 분석이 정상적으로 완료되지 않았습니다.");
   }
-  return result.formatting_style as Record<string, unknown>;
+  const conceptTags: ConceptTag[] = Array.isArray(result.concept_tags)
+    ? result.concept_tags.filter((item: unknown): item is ConceptTag => (
+        typeof item === "object" && item !== null &&
+        typeof (item as Record<string, unknown>).tag === "string"
+      ))
+    : [];
+  return {
+    formatting_style: result.formatting_style as Record<string, unknown>,
+    concept_tags: conceptTags,
+  };
 }

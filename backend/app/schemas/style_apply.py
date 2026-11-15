@@ -13,6 +13,7 @@ class StyleTagItem(BaseModel):
     count: Optional[int] = None
     score: Optional[float] = None
     reason: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None  # CAPSTONE_FORMAT_CONCEPT_SCHEMA_V1
 
 
 class CodingStylePayload(BaseModel):

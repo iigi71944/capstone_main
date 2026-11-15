@@ -6,6 +6,8 @@ from app.services.parser_service import parse_code
 from app.services.syntax_tag_service import extract_syntax_tags
 from app.services.metric_service import calculate_metrics
 from app.services.concept_tag_service import extract_concept_tags
+# CAPSTONE_FORMAT_CONCEPT_API_V1
+from app.services.style_format_concept_tag_service import build_formatting_concept_tags
 
 
 router = APIRouter()
@@ -77,4 +79,5 @@ def _analyze_formatting_style(request: _FormattingStyleRequest):
         profile = _extract_formatting_style(request.code)
     except SyntaxError:
         return {"success": False, "formatting_style": None, "error": "Python 문법 오류가 있습니다."}
-    return {"success": True, "formatting_style": profile}
+    return {"success": True, "formatting_style": profile,
+            "concept_tags": build_formatting_concept_tags(profile)}

@@ -63,10 +63,19 @@ export function useCodeAnalysis(savedStyleCount: number) {
       }
 
       // 코드 분석이 성공한 경우에만 서식을 추가 분석합니다.
-      const formattingStyle = await analyzeFormattingStyle(code);
+      // CAPSTONE_FORMAT_CONCEPT_MERGE_V1
+      const formattingAnalysis = await analyzeFormattingStyle(code);
       if (requestVersion.current !== requestId) return;
+      const formattingNames = new Set(["들여쓰기", "줄 바꿈"]);
       setIdentity(createCodingStyleIdentity());
-      setResult({ ...data, formatting_style: formattingStyle });
+      setResult({
+        ...data,
+        concept_tags: [
+          ...data.concept_tags.filter((tag) => !formattingNames.has(tag.tag)),
+          ...formattingAnalysis.concept_tags.filter((tag) => formattingNames.has(tag.tag)),
+        ],
+        formatting_style: formattingAnalysis.formatting_style,
+      });
     } catch (error) {
       if (requestVersion.current !== requestId) return;
       console.error("분석 오류:", error);

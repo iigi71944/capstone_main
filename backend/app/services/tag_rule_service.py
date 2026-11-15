@@ -618,6 +618,17 @@ CONCEPT_TAG_RULES = {
 }
 
 
+# CAPSTONE_FORMAT_CONCEPT_RULES_V1
+# Formatting-only concept tags intentionally live outside the historical
+# 41 structural concept rules (and 102-tag transform registry).
+FORMATTING_CONCEPT_TAG_RULES = {
+    "들여쓰기": {"category": "서식", "concept_level": "표현 구조",
+               "difficulty": "기본 구조", "style_role": "들여쓰기 선호 저장"},
+    "줄 바꿈": {"category": "서식", "concept_level": "표현 구조",
+               "difficulty": "기본 구조", "style_role": "줄 배치 선호 저장"},
+}
+
+
 def get_syntax_tag_rule(tag_name: str) -> dict:
     return SYNTAX_TAG_RULES.get(tag_name, {
         "category": "기타",
@@ -628,12 +639,12 @@ def get_syntax_tag_rule(tag_name: str) -> dict:
 
 
 def get_concept_tag_rule(tag_name: str) -> dict:
-    return CONCEPT_TAG_RULES.get(tag_name, {
+    return CONCEPT_TAG_RULES.get(tag_name, FORMATTING_CONCEPT_TAG_RULES.get(tag_name, {
         "category": "기타",
         "concept_level": "복잡 구조",
         "difficulty": "어려운 구조",
         "style_role": "미정의 구조",
-    })
+    }))
 
 
 def enrich_syntax_tag(tag_item: dict) -> dict:

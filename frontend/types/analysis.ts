@@ -9,6 +9,7 @@ export type SyntaxTag = {
 
 export type ConceptTag = {
   tag: string;
+  details?: Record<string, unknown> | null; // CAPSTONE_FORMAT_CONCEPT_TYPES_V1
   count?: number | null;
   score?: number | null;
   reason?: string | null;
