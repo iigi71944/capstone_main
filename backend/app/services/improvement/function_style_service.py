@@ -42,12 +42,18 @@ class FunctionStructureTransformer(cst.CSTTransformer):
             "    main()\n"
         )
 
+        # EmptyLine nodes belong to the leading_lines of a statement, not
+        # directly in Module.body (which accepts BaseStatement nodes only).
+        main_function = main_function.with_changes(
+            leading_lines=[cst.EmptyLine()]
+        )
+        main_guard = main_guard.with_changes(
+            leading_lines=[cst.EmptyLine()]
+        )
         return updated_node.with_changes(
             body=[
                 *preserved_body,
-                cst.EmptyLine(),
                 main_function,
-                cst.EmptyLine(),
                 main_guard,
             ]
         )

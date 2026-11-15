@@ -1,0 +1,1335 @@
+{
+  "summary": {
+    "tags": 102,
+    "linked": 64,
+    "compare_only": 38,
+    "unique_public_actions": 51,
+    "explicit_triplets": 31,
+    "representative_tests": 93,
+    "representative_tests_passed": 93,
+    "registry_status": "ok",
+    "registry_issues": [],
+    "by_status": {
+      "compare_only": 38,
+      "action_missing": 0,
+      "three_patterns_verified": 31,
+      "three_pattern_tests_failed": 0,
+      "three_patterns_not_yet_proven": 33
+    }
+  },
+  "tags": [
+    {
+      "tag": "None 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "assert문",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "await 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "break문",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "continue문",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "enumerate 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "f-string 사용",
+      "category": "syntax",
+      "action": "create_fstring_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "for문",
+      "category": "syntax",
+      "action": "create_counted_while_to_for",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch3.ApplicationIntegrationTests.test_for_ascending_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch3.ApplicationIntegrationTests.test_for_descending_additional",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch3.ApplicationIntegrationTests.test_for_function_complex",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "if문",
+      "category": "syntax",
+      "action": "create_if_statement",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "import문",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "input 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "lambda식",
+      "category": "syntax",
+      "action": "create_safe_lambda_expression",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "len 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "open 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "print 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "raise문",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "range 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "return문",
+      "category": "syntax",
+      "action": "create_return_structure",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "sorted 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "sum 사용",
+      "category": "syntax",
+      "action": "create_sum_aggregation",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "while문",
+      "category": "syntax",
+      "action": "create_while_iteration",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_bidirectional_loop_upgrade.ForToWhileTests.test_basic_list",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_bidirectional_loop_upgrade.ForToWhileTests.test_for_else_break",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_bidirectional_loop_upgrade.ForToWhileTests.test_nested_scope",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "with문",
+      "category": "syntax",
+      "action": "create_resource_context",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "zip 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "가변 인자 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "객체 접근 중심 구조",
+      "category": "concept",
+      "action": "create_safe_direct_attribute",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch2.AttributeTests.test_getattr_forward",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch2.AttributeTests.test_property",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch2.AttributeTests.test_multiple_access",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "검색/탐색 중심 구조",
+      "category": "concept",
+      "action": "create_search_expression",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "검증 로직 중심 구조",
+      "category": "concept",
+      "action": "create_safe_validation_condition",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch2.ValidationTransformTests.test_basic_two_nested",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch2.ValidationTransformTests.test_additional_three_nested",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch2.ValidationTransformTests.test_complex_in_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "기본 매개변수",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "긴 함수 구조",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "깊은 중첩 구조",
+      "category": "concept",
+      "action": "create_safe_deep_conditions",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch1.DeepConditionTests.test_three_terms_deep",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch1.DeepConditionTests.test_four_terms_deep",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch1.DeepConditionTests.test_in_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "내장 함수 활용 구조",
+      "category": "concept",
+      "action": "create_safe_builtin_sum",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch2.BuiltinTransformTests.test_basic_augassign",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch2.BuiltinTransformTests.test_additional_explicit_assign",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch2.BuiltinTransformTests.test_complex_predicate_in_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "논리 연산",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "단일 책임 함수 구조",
+      "category": "concept",
+      "action": "create_safe_validation_helper",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch4.FunctionSplitTests.test_positive",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch4.FunctionSplitTests.test_ge_check",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch4.FunctionSplitTests.test_multifunction",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "데이터 변환 구조",
+      "category": "concept",
+      "action": "create_safe_data_comprehension",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch2.DataTransformTests.test_basic_abs",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch2.DataTransformTests.test_additional_str",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch2.DataTransformTests.test_complex_inside_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "데이터 집계 구조",
+      "category": "concept",
+      "action": "create_aggregation_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "데이터 컬렉션 중심 구조",
+      "category": "concept",
+      "action": "create_safe_collection_literals",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch1.CollectionLiteralTests.test_basic_list",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch1.CollectionLiteralTests.test_additional_dict",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch1.CollectionLiteralTests.test_complex_tuple",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "데이터 필터링 구조",
+      "category": "concept",
+      "action": "create_filter_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "데코레이터 사용",
+      "category": "syntax",
+      "action": "create_safe_method_decorator",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch3.DecoratorsTests.test_staticmethod_forward",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch3.DecoratorsTests.test_classmethod_forward",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch3.DecoratorsTests.test_property_forward",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "딕셔너리 기반 매핑 구조",
+      "category": "concept",
+      "action": "create_mapping_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "딕셔너리 리터럴",
+      "category": "syntax",
+      "action": "create_safe_dict_literal",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch4.DictTag.test_basic_empty",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch4.DictTag.test_additional_keywords",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch4.DictTag.test_complex_function_pairs",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "딕셔너리 메서드 호출",
+      "category": "syntax",
+      "action": "create_safe_dict_get",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch3.DictGetTests.test_basic_string_key",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch3.DictGetTests.test_additional_integer_key",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch3.DictGetTests.test_complex_function_return",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "딕셔너리 컴프리헨션",
+      "category": "syntax",
+      "action": "create_dict_comprehension",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_safe_dict_comprehension_upgrade.CollapseTests.test_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_safe_dict_comprehension_upgrade.CollapseTests.test_filter",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_safe_dict_comprehension_upgrade.CollapseTests.test_nested_filters",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "리스트 누적 방식 사용",
+      "category": "concept",
+      "action": "create_append_collection",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_safe_list_comprehension_upgrade.ExpandTests.test_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_safe_list_comprehension_upgrade.ExpandTests.test_filter",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_safe_list_comprehension_upgrade.ExpandTests.test_two_filters",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "리스트 리터럴",
+      "category": "syntax",
+      "action": "create_safe_list_literal",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch4.ListTag.test_basic_empty",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch4.ListTag.test_additional_tuple",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch4.ListTag.test_complex_function_condition",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "리스트 메서드 호출",
+      "category": "syntax",
+      "action": "create_append_collection",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "리스트 컴프리헨션",
+      "category": "syntax",
+      "action": "create_comprehension_collection",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_safe_list_comprehension_upgrade.CollapseTests.test_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_safe_list_comprehension_upgrade.CollapseTests.test_filter",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_safe_list_comprehension_upgrade.CollapseTests.test_two_nested_filters",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "멤버십 연산",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "모듈 의존 구조",
+      "category": "concept",
+      "action": "create_safe_math_module_import",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "문자열 리터럴",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "문자열 메서드 호출",
+      "category": "syntax",
+      "action": "create_string_chain",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "문자열 처리 중심 구조",
+      "category": "concept",
+      "action": "create_string_chain",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "반복문 중심 구조",
+      "category": "concept",
+      "action": "create_counted_while_to_for",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_counted_while_to_for_upgrade.CountedWhileToForUpgradeTests.test_positive_increment",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_counted_while_to_for_upgrade.CountedWhileToForUpgradeTests.test_inclusive_boundary",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_counted_while_to_for_upgrade.CountedWhileToForUpgradeTests.test_multiple_while",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "반환 중심 구조",
+      "category": "concept",
+      "action": "create_safe_multiple_returns",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch1.MultipleReturnsTests.test_basic_initial_default",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch1.MultipleReturnsTests.test_additional_if_else",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch1.MultipleReturnsTests.test_complex_ternary",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "방어적 프로그래밍 구조",
+      "category": "concept",
+      "action": "create_safe_next_guard",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch3.GuardTests.test_empty",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch3.GuardTests.test_nonempty",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch3.GuardTests.test_inside_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "변수 할당",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "복잡한 조건식 사용",
+      "category": "concept",
+      "action": "create_structured_condition",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "복합 할당",
+      "category": "syntax",
+      "action": "create_safe_augmented_assignment",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch3.AugmentedAssignmentTests.test_basic_plus",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch3.AugmentedAssignmentTests.test_additional_minus",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch3.AugmentedAssignmentTests.test_complex_multiply_inside_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "불리언 리터럴",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "비교 연산",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "비동기 처리 구조",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "비동기 함수 정의",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "사용자 입력 처리 구조",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "산술 연산",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "삼항 조건식",
+      "category": "syntax",
+      "action": "create_conditional_expression",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "상태 변경 중심 구조",
+      "category": "concept",
+      "action": "create_state_update_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "세트 컴프리헨션",
+      "category": "syntax",
+      "action": "create_safe_set_comprehension",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch1.SetFamilyTests.test_simple_collapse",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch1.SetFamilyTests.test_filter_collapse",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch1.SetFamilyTests.test_two_filters",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "속성 접근",
+      "category": "syntax",
+      "action": "create_safe_direct_attribute",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_attribute_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_attribute_additional_string_field",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_attribute_complex_two_getattr_calls",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "숫자 리터럴",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "슬라이싱 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "식별 비교",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "예외 처리",
+      "category": "syntax",
+      "action": "create_safe_explicit_exception",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "예외 처리 포함 구조",
+      "category": "concept",
+      "action": "create_safe_explicit_exception",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "위치 인자 사용",
+      "category": "syntax",
+      "action": "create_safe_positional_call",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_positional_basic",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_positional_additional_three_parameters",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_positional_complex_multiple_calls",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "인덱스 기반 반복 사용",
+      "category": "concept",
+      "action": "create_index_iteration",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_safe_index_iteration_upgrade.IndexTests.test_basic_list",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_safe_index_iteration_upgrade.IndexTests.test_break_continue",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_safe_index_iteration_upgrade.IndexTests.test_unpacking",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "인덱싱 사용",
+      "category": "syntax",
+      "action": "create_safe_known_key_indexing",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch5.IndexingTagTests.test_basic_literal_key",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch5.IndexingTagTests.test_additional_integer_key",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch5.IndexingTagTests.test_complex_function_return",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "인덱싱 중심 구조",
+      "category": "concept",
+      "action": "create_index_iteration",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "입출력 중심 코드",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "전역 변수 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "전역 상태 의존 구조",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "절차형 코드 스타일",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "정렬 중심 구조",
+      "category": "concept",
+      "action": "create_sort_style",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "제너레이터 표현식",
+      "category": "syntax",
+      "action": "create_search_expression",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "조건문 중심 구조",
+      "category": "concept",
+      "action": "create_if_statement",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "조건문 중첩 구조",
+      "category": "concept",
+      "action": "create_safe_nested_conditions",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch1.NestedConditionTests.test_basic_two_conditions",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch1.NestedConditionTests.test_additional_three_conditions",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch1.NestedConditionTests.test_complex_in_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "직접 반복 사용",
+      "category": "concept",
+      "action": "create_direct_iteration",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_safe_index_iteration_upgrade.DirectTests.test_basic_list",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_safe_index_iteration_upgrade.DirectTests.test_preserves_index_in_body_with_enumerate",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_safe_index_iteration_upgrade.DirectTests.test_nested_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "컴프리헨션 기반 간결 구조",
+      "category": "concept",
+      "action": "create_comprehension_collection",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "클래스 정의",
+      "category": "syntax",
+      "action": "create_safe_explicit_class",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "클래스 중심 코드 구조",
+      "category": "concept",
+      "action": "create_safe_class_methods",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "키워드 가변 인자 사용",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "키워드 인자 사용",
+      "category": "syntax",
+      "action": "create_safe_keyword_call",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_keyword_basic_two_parameters",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_keyword_additional_three_parameters",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch5_integration.ExistingTransformerSmokeTests.test_keyword_complex_multiple_calls",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "타입 명시 코드 구조",
+      "category": "concept",
+      "action": "create_safe_local_annotation",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "타입 힌트 사용",
+      "category": "syntax",
+      "action": "create_safe_local_annotation",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "튜플 리터럴",
+      "category": "syntax",
+      "action": "create_safe_tuple_literal",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_style_unmapped_patterns_batch4.TupleTag.test_basic_empty",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_style_unmapped_patterns_batch4.TupleTag.test_additional_list",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_style_unmapped_patterns_batch4.TupleTag.test_complex_function",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "파일 입출력 구조",
+      "category": "concept",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "파일/자원 관리 구조",
+      "category": "concept",
+      "action": "create_resource_context",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "패턴 매칭",
+      "category": "syntax",
+      "action": "create_safe_pattern_matching",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "패턴 매칭 구조",
+      "category": "concept",
+      "action": "create_safe_pattern_matching",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "함수 매개변수 활용 구조",
+      "category": "concept",
+      "action": "create_safe_keyword_call",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch2.ParameterTests.test_forward",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch2.ParameterTests.test_three_parameters",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch2.ParameterTests.test_two_calls",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "tag": "함수 정의",
+      "category": "syntax",
+      "action": "create_safe_lambda_function",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "함수 중심 코드 구조",
+      "category": "concept",
+      "action": "create_function_structure",
+      "dispatcher_callable": true,
+      "status": "three_patterns_not_yet_proven",
+      "cases": []
+    },
+    {
+      "tag": "함수 호출",
+      "category": "syntax",
+      "action": null,
+      "dispatcher_callable": false,
+      "status": "compare_only",
+      "cases": []
+    },
+    {
+      "tag": "함수 호출 중심 구조",
+      "category": "concept",
+      "action": "create_safe_operator_call",
+      "dispatcher_callable": true,
+      "status": "three_patterns_verified",
+      "cases": [
+        {
+          "level": "basic",
+          "test": "test_remaining_transform_batch3.OperatorTests.test_add",
+          "passed": true
+        },
+        {
+          "level": "additional",
+          "test": "test_remaining_transform_batch3.OperatorTests.test_sub",
+          "passed": true
+        },
+        {
+          "level": "complex",
+          "test": "test_remaining_transform_batch3.OperatorTests.test_multiple",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "explanation": "three_patterns_not_yet_proven means no explicit per-tag 3-test manifest was established. It is NOT evidence that the transform cannot support 3 patterns. All three examples are trusted fixture tests, not a proof of general equivalence."
+}

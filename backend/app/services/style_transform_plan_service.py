@@ -415,6 +415,142 @@ def build_transform_plan(diff: dict) -> dict:
     if prefer_return:
         actions.append(_build_boolean_return_action())
 
+    # CAPSTONE_UNMAPPED_BATCH3_V1: style syntax list stays at 19 entries.
+    # Two omitted syntax preferences are inferred from the stored metrics.
+    # Avoid adding generated syntax merely because a tag exists in the registry.
+    saved_metrics = _get_style_metrics(diff)
+    current_metrics = _get_target_metrics(diff)
+    if (_metric_count(saved_metrics, "aug_assign_count") > 0
+            and _metric_count(current_metrics, "aug_assign_count") == 0):
+        actions.append({
+            "tag": "복합 할당",
+            "action": "create_safe_augmented_assignment",
+            "reason": "저장 스타일의 복합 할당 선호도가 관측되어 정수 리터럴 누적 대입에 한정해 적용합니다.",
+        })
+    if (_metric_count(saved_metrics, "dict_method_call_count") > 0
+            and _metric_count(current_metrics, "dict_method_call_count") == 0
+            and "딕셔너리 기반 매핑 구조" in _get_tag_names(diff, "style_concept_names")):
+        actions.append({
+            "tag": "딕셔너리 메서드 호출",
+            "action": "create_safe_dict_get",
+            "reason": "저장 스타일의 딕셔너리 메서드 선호도가 관측되어 확정된 키 조회에만 적용합니다.",
+        })
+
+    # CAPSTONE_UNMAPPED_BATCH4_V1: no changes to the 19-item syntax storage filter.
+    # Existing metrics provide evidence for literal preferences. Avoid creating
+    # missing tags blindly: only supported constant constructors are rewritten.
+    saved_metrics_b4 = _get_style_metrics(diff)
+    target_metrics_b4 = _get_target_metrics(diff)
+    for tag_b4, metric_b4, action_b4 in (
+        ("리스트 리터럴", "list_literal_count", "create_safe_list_literal"),
+        ("딕셔너리 리터럴", "dict_literal_count", "create_safe_dict_literal"),
+        ("튜플 리터럴", "tuple_literal_count", "create_safe_tuple_literal"),
+    ):
+        if (_metric_count(saved_metrics_b4, metric_b4) > 0
+                and _metric_count(target_metrics_b4, metric_b4) == 0):
+            actions.append({
+                "tag": tag_b4,
+                "action": action_b4,
+                "reason": "저장 스타일에서 관측한 리터럴 표현을 동등성이 검토된 생성자 패턴에 적용합니다.",
+            })
+
+    # CAPSTONE_UNMAPPED_BATCH5_V1: 19 syntax tags in stored styles remain unchanged.
+    # Detect four new syntax preferences from metrics that were *already*
+    # stored by previous versions. Require evidence in the saved style and a
+    # matching absence/presence in the target before considering safe edits.
+    saved_metrics_b5 = _get_style_metrics(diff)
+    target_metrics_b5 = _get_target_metrics(diff)
+    if (_metric_count(saved_metrics_b5, "subscript_count") > 0
+            and _metric_count(target_metrics_b5, "subscript_count") == 0):
+        actions.append({
+            "tag": "인덱싱 사용",
+            "action": "create_safe_known_key_indexing",
+            "reason": "저장된 스타일의 인덱싱 선호도를 확인하여 확정된 딕셔너리 키 조회에만 적용합니다.",
+        })
+    if (_metric_count(saved_metrics_b5, "attribute_count") > 0
+            and _metric_count(target_metrics_b5, "attribute_count") == 0):
+        actions.append({
+            "tag": "속성 접근",
+            "action": "create_safe_direct_attribute",
+            "reason": "저장된 스타일의 직접 속성 접근 선호도를 확인하여 안전한 getattr 표현만 변경합니다.",
+        })
+    if (_metric_count(saved_metrics_b5, "keyword_arg_count") > 0
+            and _metric_count(target_metrics_b5, "keyword_arg_count") == 0):
+        actions.append({
+            "tag": "키워드 인자 사용",
+            "action": "create_safe_keyword_call",
+            "reason": "저장된 스타일의 키워드 인자 선호도를 확인하여 정적인 함수 호출만 변경합니다.",
+        })
+    elif (_metric_count(saved_metrics_b5, "keyword_arg_count") == 0
+            and _metric_count(saved_metrics_b5, "positional_arg_count") > 0
+            and _metric_count(target_metrics_b5, "keyword_arg_count") > 0):
+        actions.append({
+            "tag": "위치 인자 사용",
+            "action": "create_safe_positional_call",
+            "reason": "저장된 스타일의 위치 인자 선호도를 확인하여 순서가 보존되는 함수 호출만 변경합니다.",
+        })
+
+    # CAPSTONE_UNMAPPED_BATCH9_V1: infer syntax preferences exclusively from
+    # already-persisted metric counters; DO NOT expand the 19 stored syntax tags.
+    saved_metrics_b9 = _get_style_metrics(diff)
+    target_metrics_b9 = _get_target_metrics(diff)
+    for tag_b9, metric_b9, action_b9 in (
+        ("range 사용", "range_call_count", "create_safe_literal_range"),
+        ("논리 연산", "bool_op_count", "create_safe_nested_boolean"),
+        ("멤버십 연산", "membership_op_count", "create_safe_known_membership"),
+    ):
+        if (_metric_count(saved_metrics_b9, metric_b9) > 0
+                and _metric_count(target_metrics_b9, metric_b9) == 0):
+            actions.append({
+                "tag": tag_b9,
+                "action": action_b9,
+                "reason": "저장된 스타일의 기존 메트릭 선호를 확인하여 제한된 안전 패턴만 변환합니다.",
+            })
+    if (_metric_count(saved_metrics_b9, "sorted_call_count") > 0
+            and _metric_count(saved_metrics_b9, "sort_method_call_count") == 0
+            and _metric_count(target_metrics_b9, "sorted_call_count") == 0
+            and _metric_count(target_metrics_b9, "sort_method_call_count") > 0
+            and not any(item.get("action") == "create_sort_style" for item in actions)):
+        actions.append({
+            "tag": "sorted 사용",
+            "action": "create_sort_style",
+            "reason": "저장된 스타일의 sorted() 호출 선호와 대상 코드의 list.sort()를 비교하여 변환합니다.",
+        })
+
+    # CAPSTONE_UNMAPPED_BATCH10_V1: use previously saved metric counters;
+    # add only enumerate; other metric preferences exist in batches 3/5.
+    saved_metrics_b10 = _get_style_metrics(diff)
+    target_metrics_b10 = _get_target_metrics(diff)
+    for tag_b10, metric_b10, action_b10 in (
+        ("enumerate 사용", "enumerate_call_count", "create_safe_enumerate"),
+    ):
+        if (_metric_count(saved_metrics_b10, metric_b10) > 0
+                and _metric_count(target_metrics_b10, metric_b10) == 0):
+            actions.append({
+                "tag": tag_b10,
+                "action": action_b10,
+                "reason": "기존 저장 메트릭에 근거해 안전한 구문 패턴을 탐색합니다.",
+            })
+
+    # CAPSTONE_UNMAPPED_BATCH11_PLAN_V1: no change to the 19 saved syntax tags.
+    # The same stored metric fields already used by previous style records
+    # indicate preferences; require evidence in the candidate target as well.
+    saved_b11 = _get_style_metrics(diff)
+    target_b11 = _get_target_metrics(diff)
+    for tag_b11, desired_b11, evidence_b11, action_b11 in (
+        ("len 사용", "len_call_count", "sum_call_count", "create_safe_literal_len"),
+        ("zip 사용", "zip_call_count", "loop_count", "create_safe_literal_zip"),
+        ("슬라이싱 사용", "slicing_count", "list_method_call_count", "create_safe_list_slice"),
+    ):
+        if (_metric_count(saved_b11, desired_b11) > 0
+                and _metric_count(target_b11, desired_b11) == 0
+                and _metric_count(target_b11, evidence_b11) > 0):
+            actions.append({
+                "tag": tag_b11,
+                "action": action_b11,
+                "reason": "저장된 기존 메트릭으로 확인한 스타일 선호를 제한된 안전 패턴에 적용합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -459,6 +595,17 @@ def build_transform_plan(diff: dict) -> dict:
         if condition_preference == "if" and action == "create_conditional_expression":
             continue
         if condition_preference == "expression" and action == "create_if_statement":
+            continue
+
+        # CAPSTONE_UNMAPPED_BATCH2_V1: do not undo stronger saved preferences.
+        # A nested style should not be flattened merely to create a broad
+        # validation concept, and a state-mutation style should not be summed.
+        saved_concepts = _get_tag_names(diff, "style_concept_names")
+        if tag_name == "검증 로직 중심 구조" and saved_concepts & {
+            "조건문 중첩 구조", "깊은 중첩 구조"
+        }:
+            continue
+        if tag_name == "내장 함수 활용 구조" and "상태 변경 중심 구조" in saved_concepts:
             continue
 
         actions.append({

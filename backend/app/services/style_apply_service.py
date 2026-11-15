@@ -128,9 +128,91 @@ def _format_tag_list(tags: list[dict]) -> str:
     return ", ".join(names) if names else "없음"
 
 
+# CAPSTONE_UNMAPPED_BATCH1_V1: new conservative, source-preserving concept actions.
+from app.services.improvement.safe_unmapped_patterns_service import (
+    transform_to_nested_conditions,
+    transform_to_deep_conditions,
+    transform_to_literal_collections,
+    transform_to_multiple_returns,
+)
+
+# CAPSTONE_UNMAPPED_BATCH2_V1: source-preserving transforms for stored concept tags.
+from app.services.improvement.safe_unmapped_patterns_batch2_service import (
+    transform_to_data_comprehension,
+    transform_to_builtin_sum,
+    transform_to_validation_condition,
+)
+
+# CAPSTONE_UNMAPPED_BATCH3_V1: conservative, byte-splice source edits.
+from app.services.improvement.safe_unmapped_patterns_batch3_service import (
+    transform_to_augmented_assignment,
+    transform_to_dict_get,
+)
+
+# CAPSTONE_UNMAPPED_BATCH4_V1: three restricted source-preserving literal transformations.
+from app.services.improvement.safe_unmapped_patterns_batch4_service import (
+    transform_to_list_literal,
+    transform_to_dict_literal,
+    transform_to_tuple_literal,
+)
+
+# CAPSTONE_UNMAPPED_BATCH5_V1: only the proven present-key indexing pattern needs a new transformer.
+from app.services.improvement.safe_unmapped_patterns_batch5_service import (
+    transform_to_known_key_indexing,
+)
+
+# CAPSTONE_UNMAPPED_BATCH9_V1: conservative source-to-source transformations.
+from app.services.improvement.safe_unmapped_patterns_batch9_service import (
+    transform_to_literal_range_style,
+    transform_to_nested_boolean_style,
+    transform_to_known_membership_style,
+)
+
+# CAPSTONE_UNMAPPED_BATCH10_V1: narrow and source-preserving additions.
+from app.services.improvement.safe_unmapped_patterns_batch10_service import (
+    transform_to_safe_augassign_style,
+    transform_to_safe_enumerate_style,
+)
+
+# CAPSTONE_UNMAPPED_BATCH11_IMPORT_V1
+from app.services.improvement.safe_unmapped_patterns_batch11_service import (
+    transform_to_safe_literal_len_style,
+    transform_to_safe_literal_zip_style,
+    transform_to_safe_list_slice_style,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_UNMAPPED_BATCH11_MAP_V1
+        "create_safe_literal_len": transform_to_safe_literal_len_style,
+        "create_safe_literal_zip": transform_to_safe_literal_zip_style,
+        "create_safe_list_slice": transform_to_safe_list_slice_style,
+        # CAPSTONE_UNMAPPED_BATCH10_V1
+        "create_safe_augassign": transform_to_safe_augassign_style,
+        "create_safe_enumerate": transform_to_safe_enumerate_style,
+        # CAPSTONE_UNMAPPED_BATCH9_V1
+        "create_safe_literal_range": transform_to_literal_range_style,
+        "create_safe_nested_boolean": transform_to_nested_boolean_style,
+        "create_safe_known_membership": transform_to_known_membership_style,
+        # CAPSTONE_UNMAPPED_BATCH5_V1: other three actions reuse existing safe transformers.
+        "create_safe_known_key_indexing": transform_to_known_key_indexing,
+        # CAPSTONE_UNMAPPED_BATCH4_V1: syntax-literal constructors.
+        "create_safe_list_literal": transform_to_list_literal,
+        "create_safe_dict_literal": transform_to_dict_literal,
+        "create_safe_tuple_literal": transform_to_tuple_literal,
+        # CAPSTONE_UNMAPPED_BATCH3_V1: metric-driven syntax preference actions.
+        "create_safe_augmented_assignment": transform_to_augmented_assignment,
+        "create_safe_dict_get": transform_to_dict_get,
+        # CAPSTONE_UNMAPPED_BATCH2_V1: independently checked concept transforms.
+        "create_safe_data_comprehension": transform_to_data_comprehension,
+        "create_safe_builtin_sum": transform_to_builtin_sum,
+        "create_safe_validation_condition": transform_to_validation_condition,
+        # CAPSTONE_UNMAPPED_BATCH1_V1: additional compare-only concept transforms.
+        "create_safe_nested_conditions": transform_to_nested_conditions,
+        "create_safe_deep_conditions": transform_to_deep_conditions,
+        "create_safe_collection_literals": transform_to_literal_collections,
+        "create_safe_multiple_returns": transform_to_multiple_returns,
         # Batch 3 conservative transforms and their reverse callables.
         # Batch 4: narrow architecture pattern transforms.
         "create_safe_validation_helper": transform_extract_validation_helper,

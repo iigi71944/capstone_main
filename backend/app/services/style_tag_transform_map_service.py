@@ -7,6 +7,39 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_UNMAPPED_BATCH11_REGISTRY_V1: three genuinely new tag links.
+    "len 사용": "create_safe_literal_len",
+    "zip 사용": "create_safe_literal_zip",
+    "슬라이싱 사용": "create_safe_list_slice",
+    # CAPSTONE_UNMAPPED_BATCH10_V1: one newly linked syntax tag; 4 earlier links preserved.
+    "enumerate 사용": "create_safe_enumerate",
+    # CAPSTONE_UNMAPPED_BATCH9_V1: inferred from existing saved metrics, no style-schema changes.
+    "range 사용": "create_safe_literal_range",
+    "논리 연산": "create_safe_nested_boolean",
+    "멤버십 연산": "create_safe_known_membership",
+    "sorted 사용": "create_sort_style",
+    # CAPSTONE_UNMAPPED_BATCH5_V1: syntax tags use existing saved metrics, not a new storage schema.
+    "인덱싱 사용": "create_safe_known_key_indexing",
+    "속성 접근": "create_safe_direct_attribute",
+    "키워드 인자 사용": "create_safe_keyword_call",
+    "위치 인자 사용": "create_safe_positional_call",
+    # CAPSTONE_UNMAPPED_BATCH4_V1: syntax preferences inferred from existing style metrics.
+    "리스트 리터럴": "create_safe_list_literal",
+    "딕셔너리 리터럴": "create_safe_dict_literal",
+    "튜플 리터럴": "create_safe_tuple_literal",
+    # CAPSTONE_UNMAPPED_BATCH3_V1: metric-directed syntax preferences; style JSON unchanged.
+    "복합 할당": "create_safe_augmented_assignment",
+    "딕셔너리 메서드 호출": "create_safe_dict_get",
+    "for문": "create_counted_while_to_for",
+    # CAPSTONE_UNMAPPED_BATCH2_V1: additional concepts, existing stored styles unchanged.
+    "데이터 변환 구조": "create_safe_data_comprehension",
+    "내장 함수 활용 구조": "create_safe_builtin_sum",
+    "검증 로직 중심 구조": "create_safe_validation_condition",
+    # CAPSTONE_UNMAPPED_BATCH1_V1: save format unchanged; previously compare-only concepts.
+    "조건문 중첩 구조": "create_safe_nested_conditions",
+    "깊은 중첩 구조": "create_safe_deep_conditions",
+    "데이터 컬렉션 중심 구조": "create_safe_collection_literals",
+    "반환 중심 구조": "create_safe_multiple_returns",
     # Batch 4: conservative, executable transformations for the four
     # previously planned architectural tag families.
     "단일 책임 함수 구조": "create_safe_validation_helper",

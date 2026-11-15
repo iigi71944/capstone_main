@@ -8,6 +8,7 @@ from app.schemas.style_apply import (
 from app.services.style_apply_service import apply_coding_style
 from app.services.style_format_apply_service import apply_saved_formatting_style
 from app.services.execution_validation_service import verify_execution_equivalence
+from app.services.style_output_comment_service import strip_style_output_comments
 
 
 router = APIRouter()
@@ -189,6 +190,62 @@ def apply_style_api(request: StyleApplyRequest):
                         "최종 서식 적용 후 실행 동등성을 확인하지 못했습니다. "
                         "화면의 검증 메시지를 확인해 주세요."
                     )
+
+        # CAPSTONE_STYLE_OUTPUT_COMMENT_CLEANUP_V1: only code shown on Style Apply is cleaned.
+        # Remove comments and independent string expressions even when no
+        # style action changed the Python AST or the earlier action rolled back.
+        displayed_code = strip_style_output_comments(transformed_code)
+        if displayed_code != transformed_code:
+            transformed_code = displayed_code
+            # Final verification must describe the exact displayed code.
+            # Removing actual docstrings may change __doc__; never silently
+            # label such output equivalent or revert the requested cleanup.
+            try:
+                cleanup_check = verify_execution_equivalence(
+                    original_code=request.code,
+                    transformed_code=transformed_code,
+                    function_cases=function_cases,
+                )
+            except Exception as cleanup_error:
+                cleanup_check = None
+                warnings.append(
+                    "주석 제거 후 최종 실행 검증 오류: "
+                    + type(cleanup_error).__name__
+                )
+            cleanup_valid = isinstance(cleanup_check, dict)
+            if cleanup_valid:
+                cleanup_status = cleanup_check.get("status")
+                cleanup_eq = cleanup_check.get("equivalent")
+                cleanup_valid = (
+                    cleanup_status in ("equivalent", "different", "not_verified")
+                    and ((cleanup_status == "equivalent" and cleanup_eq is True)
+                         or (cleanup_status == "different" and cleanup_eq is False)
+                         or (cleanup_status == "not_verified" and cleanup_eq is None))
+                    and isinstance(cleanup_check.get("original"), dict)
+                    and isinstance(cleanup_check.get("transformed"), dict)
+                )
+            if cleanup_valid:
+                execution_verification = cleanup_check
+                if cleanup_check["status"] == "different":
+                    warnings.append(
+                        "주석 및 독립 문자열 제거 후 실행 결과가 달라졌습니다. "
+                        "독스트링(__doc__)을 참조하는 코드인지 확인해 주세요."
+                    )
+                elif cleanup_check["status"] == "not_verified":
+                    warnings.append(
+                        "주석 제거 후 최종 코드의 실행 동등성은 확인되지 않았습니다."
+                    )
+            else:
+                execution_verification = None
+                warnings.append(
+                    "주석 제거 후 최종 코드의 실행 결과를 확인하지 못했습니다."
+                )
+            summary = (summary or "").replace(
+                "최종 코드 변경이 없어 별도의 실행 결과 비교를 수행하지 않았습니다.",
+                "주석 제거 후 최종 코드의 실행 결과 비교를 시도했습니다.",
+            ) + (
+                " 최종 표시 코드에서 주석과 독립 문자열 설명문을 제외했습니다."
+            )
 
         return StyleApplyResponse(
             success=True,
