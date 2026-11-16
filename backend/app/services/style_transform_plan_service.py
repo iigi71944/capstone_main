@@ -613,6 +613,25 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "저장 스타일의 기존 메트릭과 대상 operator 구문을 확인한 안전 패턴만 변환합니다.",
             })
 
+    # CAPSTONE_BATCH20_METRIC_PLAN_V1: only observed style preferences.
+    saved_b20 = _get_style_metrics(diff)
+    target_b20 = _get_target_metrics(diff)
+    for tag_b20, saved_metric, target_evidence, action_b20 in (
+        ("None 사용", "none_count", ("dict_literal_count", "attribute_count", "call_count"),
+         "create_safe_empty_dict_none"),
+        ("print 사용", "print_call_count", ("import_count", "attribute_count", "call_count"),
+         "create_safe_builtin_print"),
+    ):
+        if (_metric_count(saved_b20, saved_metric) > 0
+                and _metric_count(target_b20, saved_metric) == 0
+                and all(_metric_count(target_b20, metric) > 0 for metric in target_evidence)
+                and not any(item.get("action") == action_b20 for item in actions)):
+            actions.append({
+                "tag": tag_b20,
+                "action": action_b20,
+                "reason": "저장 스타일의 기존 메트릭이 확인된 경우 안전한 국소 코드 패턴만 변경합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -623,6 +642,9 @@ def build_transform_plan(diff: dict) -> dict:
             continue
         if tag_name in {"비교 연산", "함수 호출"}:
             continue  # Batch 19: metric gate above is required.
+        # CAPSTONE_BATCH20_METRIC_ONLY_V1: missing-tag evidence alone is insufficient.
+        if tag_name in {"None 사용", "print 사용"}:
+            continue
 
         # CAPSTONE_UNMAPPED_BATCH13_METRIC_ONLY_V1: never select these actions
         # from a missing-tag record alone; only the gated metrics above may.

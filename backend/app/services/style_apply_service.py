@@ -203,6 +203,12 @@ from app.services.improvement.safe_comparison_batch19_service import (
     transform_operator_comparison_to_syntax,
 )
 
+# CAPSTONE_BATCH20_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch20_service import (
+    transform_safe_empty_dict_get_to_none,
+    transform_safe_builtins_print_to_print,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
@@ -258,6 +264,9 @@ def _get_transform_function(action: str):
         "create_safe_arithmetic_expression": transform_operator_call_to_arithmetic,
         # CAPSTONE_BATCH19_DISPATCH_MAP_V1
         "create_safe_operator_comparison": transform_operator_comparison_to_syntax,
+        # CAPSTONE_BATCH20_DISPATCH_MAP_V1
+        "create_safe_empty_dict_none": transform_safe_empty_dict_get_to_none,
+        "create_safe_builtin_print": transform_safe_builtins_print_to_print,
         # Safe structural-pattern transforms (batch 2).
         "create_safe_explicit_exception": transform_suppress_to_try,
         "create_safe_exception_suppress": transform_try_to_suppress,
