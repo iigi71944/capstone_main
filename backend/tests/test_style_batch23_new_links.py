@@ -183,8 +183,10 @@ class Batch23Safety(unittest.TestCase):
         self.assertEqual(get_create_action_for_tag('전역 변수 사용'), 'create_safe_readonly_global')
         self.assertIs(_get_transform_function('create_safe_counted_break'), break_transform)
         self.assertIs(_get_transform_function('create_safe_readonly_global'), global_transform)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 88)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 14)
+        # CAPSTONE_BATCH24_LEGACY_COUNT_V1: preserve the batch23 minimum.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 88)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 14)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_metrics_gate(self):
         saved = {'break_count': 2, 'global_count': 1}

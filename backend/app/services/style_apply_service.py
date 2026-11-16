@@ -226,9 +226,18 @@ from app.services.improvement.safe_batch23_service import (
     transform_safe_readonly_global_declaration,
 )
 
+# CAPSTONE_BATCH24_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch24_service import (
+    transform_simple_print_to_explicit_builtins_import,
+    transform_simple_literal_print_arguments,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_BATCH24_DISPATCH_MAP_V1
+        "create_safe_explicit_builtins_import": transform_simple_print_to_explicit_builtins_import,
+        "create_safe_literal_print_merge": transform_simple_literal_print_arguments,
         # CAPSTONE_BATCH23_DISPATCH_MAP_V1
         "create_safe_counted_break": transform_safe_counted_while_to_guard_break,
         "create_safe_readonly_global": transform_safe_readonly_global_declaration,

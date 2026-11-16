@@ -704,6 +704,30 @@ def build_transform_plan(diff: dict) -> dict:
             "reason": "모듈에 정의된 상수를 읽기만 하는 단순 함수에 명시적 global 선언을 추가합니다.",
         })
 
+    # CAPSTONE_BATCH24_METRIC_GATE_V1: never select from a tag name alone.
+    # A stored print-argument preference and a stored explicit-import preference
+    # allow only narrowly recognized top-level print statements to change.
+    saved_b24 = _get_style_metrics(diff)
+    target_b24 = _get_target_metrics(diff)
+    if (_metric_count(saved_b24, "print_call_count") > 0
+            and _metric_count(target_b24, "print_call_count") > 0
+            and _metric_count(saved_b24, "string_literal_count") > 0
+            and 0 < _metric_count(saved_b24, "positional_arg_count")
+            < _metric_count(target_b24, "positional_arg_count")):
+        actions.append({
+            "tag": "입출력 중심 코드",
+            "action": "create_safe_literal_print_merge",
+            "reason": "저장된 출력 인자 선호가 확인된 경우 상수 문자열 print 인자만 합칩니다.",
+        })
+    if (_metric_count(saved_b24, "import_count") > 0
+            and _metric_count(target_b24, "import_count") == 0
+            and _metric_count(target_b24, "print_call_count") > 0):
+        actions.append({
+            "tag": "import문",
+            "action": "create_safe_explicit_builtins_import",
+            "reason": "저장된 import 사용 선호에 따라 단순 print 전용 코드에 builtins import를 명시합니다.",
+        })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -711,6 +735,9 @@ def build_transform_plan(diff: dict) -> dict:
         action = get_create_action_for_tag(tag_name)
         if action is None:
             compare_only.append(tag_name)
+            continue
+        # CAPSTONE_BATCH24_METRIC_ONLY_V1: the metrics above are mandatory.
+        if tag_name in {"import문", "입출력 중심 코드"}:
             continue
         if tag_name in {"비교 연산", "함수 호출"}:
             continue  # Batch 19: metric gate above is required.
