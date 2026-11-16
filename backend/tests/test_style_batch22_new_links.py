@@ -174,8 +174,10 @@ class Batch22SafetyTests(unittest.TestCase):
         self.assertEqual(get_create_action_for_tag('raise문'), 'create_safe_debug_raise')
         self.assertIs(_get_transform_function('create_safe_literal_unpack_assignments'), unpack)
         self.assertIs(_get_transform_function('create_safe_debug_raise'), explicit_raise)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 86)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 16)
+        # CAPSTONE_BATCH23_LEGACY_REGISTRY_V1: later linked tags are allowed.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 86)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 16)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_plan_gates(self):
         saved = {'assign_count': 5, 'raise_count': 1}

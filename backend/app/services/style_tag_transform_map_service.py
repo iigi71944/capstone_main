@@ -7,6 +7,9 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_BATCH23_REGISTRY_V1: guarded break and readonly global.
+    "break문": "create_safe_counted_break",
+    "전역 변수 사용": "create_safe_readonly_global",
     # CAPSTONE_BATCH22_REGISTRY_V1: safe literal unpack and debug raise.
     "변수 할당": "create_safe_literal_unpack_assignments",
     "raise문": "create_safe_debug_raise",

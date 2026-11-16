@@ -679,6 +679,31 @@ def build_transform_plan(diff: dict) -> dict:
             "reason": "__debug__로 보호된 단순 assert만 명시적 예외 발생으로 변환합니다.",
         })
 
+    # CAPSTONE_BATCH23_METRIC_GATE_V1: explicit saved preferences only.
+    # Avoid introducing break guards when the saved style prefers for loops.
+    saved_b23 = _get_style_metrics(diff)
+    target_b23 = _get_target_metrics(diff)
+    if (_metric_count(saved_b23, "break_count") > 0
+            and _metric_count(target_b23, "break_count") == 0
+            and _metric_count(target_b23, "loop_count") > 0
+            and not prefer_for
+            and not any(item.get("action") in {"create_while_iteration", "create_counted_while_to_for"}
+                        for item in actions)):
+        actions.append({
+            "tag": "break문",
+            "action": "create_safe_counted_break",
+            "reason": "정수 카운터가 명확한 while 반복문에만 종료 조건의 break 가드를 명시합니다.",
+        })
+    if (_metric_count(saved_b23, "global_count") > 0
+            and _metric_count(target_b23, "global_count") == 0
+            and _metric_count(target_b23, "function_count") > 0
+            and _metric_count(target_b23, "assign_count") > 0):
+        actions.append({
+            "tag": "전역 변수 사용",
+            "action": "create_safe_readonly_global",
+            "reason": "모듈에 정의된 상수를 읽기만 하는 단순 함수에 명시적 global 선언을 추가합니다.",
+        })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -689,6 +714,9 @@ def build_transform_plan(diff: dict) -> dict:
             continue
         if tag_name in {"비교 연산", "함수 호출"}:
             continue  # Batch 19: metric gate above is required.
+        # CAPSTONE_BATCH23_METRIC_ONLY_V1: missing tags alone never trigger generation.
+        if tag_name in {"break문", "전역 변수 사용"}:
+            continue
         # CAPSTONE_BATCH22_METRIC_ONLY_V1: no blind transforms from a missing tag.
         if tag_name in {"변수 할당", "raise문"}:
             continue

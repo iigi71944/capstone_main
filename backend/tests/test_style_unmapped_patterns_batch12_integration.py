@@ -122,7 +122,10 @@ class Batch12IntegrationTests(unittest.TestCase):
                 self.assertEqual(get_create_action_for_tag(tag), action)
 
     def test_unsafe_tags_remain_compare_only(self):
-        for tag in ('await 사용', '전역 변수 사용', '파일 입출력 구조'):
+        # CAPSTONE_BATCH23_LEGACY_TEST_FIX_V1
+        self.assertEqual(get_tag_transform_status('전역 변수 사용'), 'linked')
+        self.assertEqual(get_create_action_for_tag('전역 변수 사용'), 'create_safe_readonly_global')
+        for tag in ('await 사용', '파일 입출력 구조'):
             with self.subTest(tag=tag):
                 self.assertEqual(get_tag_transform_status(tag), 'compare_only')
 
