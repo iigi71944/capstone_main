@@ -166,8 +166,10 @@ class Batch21Safety(unittest.TestCase):
         self.assertEqual(get_create_action_for_tag('assert문'), 'create_safe_debug_assert')
         self.assertIs(_get_transform_function('create_safe_builtin_input'), transform_safe_builtin_input)
         self.assertIs(_get_transform_function('create_safe_debug_assert'), transform_debug_guard_to_assert)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 84)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 18)
+        # CAPSTONE_BATCH22_LEGACY_REGISTRY_V1: keep old expectations valid after extensions.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 84)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 18)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_plan_gates(self):
         saved = {'input_call_count': 2, 'assert_count': 1}

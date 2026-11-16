@@ -343,6 +343,8 @@ _NEW_FAMILY_PAIRS = {
     "lambda": {"create_safe_lambda_expression", "create_safe_lambda_function"},
     "pattern": {"create_safe_pattern_matching", "create_safe_pattern_if"},
     "annotation": {"create_safe_local_annotation", "create_safe_local_deannotation"},
+    # CAPSTONE_BATCH22_ASSERT_RAISE_CONFLICT_V1
+    "assert_raise": {"create_safe_debug_assert", "create_safe_debug_raise"},
 }
 
 
@@ -653,6 +655,30 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "저장된 메트릭과 국소 코드 패턴에 근거한 안전한 변환만 실행합니다.",
             })
 
+    # CAPSTONE_BATCH22_METRIC_GATE_V1: derive preference from stored metrics.
+    # Unpacking constants is local and side-effect free. Debug assert expansion
+    # keeps the explicit optimization guard; neither action is triggered by a
+    # missing-tag label alone.
+    saved_b22 = _get_style_metrics(diff)
+    target_b22 = _get_target_metrics(diff)
+    if (_metric_count(saved_b22, "assign_count") >
+            _metric_count(target_b22, "assign_count") > 0
+            and _metric_count(target_b22, "tuple_literal_count") > 0):
+        actions.append({
+            "tag": "변수 할당",
+            "action": "create_safe_literal_unpack_assignments",
+            "reason": "저장 스타일의 개별 대입문 선호와 상수 튜플 언패킹이 모두 확인된 경우에만 분리합니다.",
+        })
+    if (_metric_count(saved_b22, "raise_count") > 0
+            and _metric_count(target_b22, "raise_count") == 0
+            and _metric_count(target_b22, "assert_count") > 0
+            and _metric_count(target_b22, "if_count") > 0):
+        actions.append({
+            "tag": "raise문",
+            "action": "create_safe_debug_raise",
+            "reason": "__debug__로 보호된 단순 assert만 명시적 예외 발생으로 변환합니다.",
+        })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -663,6 +689,9 @@ def build_transform_plan(diff: dict) -> dict:
             continue
         if tag_name in {"비교 연산", "함수 호출"}:
             continue  # Batch 19: metric gate above is required.
+        # CAPSTONE_BATCH22_METRIC_ONLY_V1: no blind transforms from a missing tag.
+        if tag_name in {"변수 할당", "raise문"}:
+            continue
         # CAPSTONE_BATCH21_METRIC_ONLY_V1: unobserved tag name is not enough.
         if tag_name in {"input 사용", "assert문"}:
             continue
