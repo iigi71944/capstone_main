@@ -632,6 +632,27 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "저장 스타일의 기존 메트릭이 확인된 경우 안전한 국소 코드 패턴만 변경합니다.",
             })
 
+    # CAPSTONE_BATCH21_METRIC_GATE_V1: only recorded preferences select actions.
+    # Assert changes require an explicit __debug__ guard. Input only rewrites a
+    # prior-imported builtins.input call without changing the prompt or stdin.
+    saved_b21 = _get_style_metrics(diff)
+    target_b21 = _get_target_metrics(diff)
+    for tag_b21, saved_metric, evidence, action_b21 in (
+        ("input 사용", "input_call_count", ("import_count", "attribute_count", "call_count"),
+         "create_safe_builtin_input"),
+        ("assert문", "assert_count", ("if_count", "raise_count"),
+         "create_safe_debug_assert"),
+    ):
+        if (_metric_count(saved_b21, saved_metric) > 0
+                and _metric_count(target_b21, saved_metric) == 0
+                and all(_metric_count(target_b21, metric) > 0 for metric in evidence)
+                and not any(item.get("action") == action_b21 for item in actions)):
+            actions.append({
+                "tag": tag_b21,
+                "action": action_b21,
+                "reason": "저장된 메트릭과 국소 코드 패턴에 근거한 안전한 변환만 실행합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -642,6 +663,9 @@ def build_transform_plan(diff: dict) -> dict:
             continue
         if tag_name in {"비교 연산", "함수 호출"}:
             continue  # Batch 19: metric gate above is required.
+        # CAPSTONE_BATCH21_METRIC_ONLY_V1: unobserved tag name is not enough.
+        if tag_name in {"input 사용", "assert문"}:
+            continue
         # CAPSTONE_BATCH20_METRIC_ONLY_V1: missing-tag evidence alone is insufficient.
         if tag_name in {"None 사용", "print 사용"}:
             continue

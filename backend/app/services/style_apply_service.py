@@ -209,9 +209,17 @@ from app.services.improvement.safe_batch20_service import (
     transform_safe_builtins_print_to_print,
 )
 
+# CAPSTONE_BATCH21_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch21_service import (
+    transform_safe_builtin_input, transform_debug_guard_to_assert,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_BATCH21_DISPATCH_MAP_V1
+        "create_safe_builtin_input": transform_safe_builtin_input,
+        "create_safe_debug_assert": transform_debug_guard_to_assert,
         # CAPSTONE_UNMAPPED_BATCH13_MAP_V1
         "create_safe_string_literal": transform_to_safe_string_literal_style,
         "create_safe_number_literal": transform_to_safe_number_literal_style,

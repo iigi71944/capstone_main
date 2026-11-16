@@ -138,8 +138,10 @@ class Batch20Safety(unittest.TestCase):
         self.assertEqual(get_create_action_for_tag('print 사용'), 'create_safe_builtin_print')
         self.assertIs(_get_transform_function('create_safe_empty_dict_none'), none_transform)
         self.assertIs(_get_transform_function('create_safe_builtin_print'), print_transform)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 82)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 20)
+        # CAPSTONE_BATCH21_LEGACY_BASELINE_V1: later batches may extend the registry.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 82)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 20)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_preference_gate_for_none(self):
         actions = {item['action'] for item in plan(
