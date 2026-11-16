@@ -40,7 +40,9 @@ interface StyleApplySectionProps {
   targetCode: string;
   setTargetCode: (value: string) => void;
   handleApplyStyle: (
-    functionCases?: FunctionTestCase[] | null
+    functionCases?: FunctionTestCase[] | null,
+    legacyVerificationOption?: boolean,
+    stdin?: string
   ) => void | Promise<void>;
   styleApplyLoading: boolean;
   styleApplyResult: StyleApplyResult | null;
@@ -58,6 +60,7 @@ interface FunctionTestDraft {
   functionName: string;
   argsText: string;
   kwargsText: string;
+  stdinText: string;
 }
 
 const MAX_FUNCTION_CASES = 8;
@@ -69,13 +72,9 @@ const createFunctionDraft = (
   functionName: "",
   argsText: "[]",
   kwargsText: "{}",
+  stdinText: "",
 });
 
-const KEYWORD_ARGUMENT_EXAMPLE = `def greet(name, punctuation="!"):
-    return f"Hello, {name}{punctuation}"
-
-greet("Jin", punctuation="?")
-# 결과: "Hello, Jin?"`;
 
 function getStatusLabel(
   status: VerificationStatus
@@ -199,6 +198,7 @@ export default function StyleApplySection({
   const [useFunctionTests, setUseFunctionTests] =
     useState(false);
 
+
   const [functionDrafts, setFunctionDrafts] =
     useState<FunctionTestDraft[]>([
       createFunctionDraft(1),
@@ -221,7 +221,8 @@ export default function StyleApplySection({
     field:
       | "functionName"
       | "argsText"
-      | "kwargsText",
+      | "kwargsText"
+      | "stdinText",
     value: string
   ) => {
     setFunctionDrafts((current) =>
@@ -340,8 +341,13 @@ export default function StyleApplySection({
         return null;
       }
 
+      if (draft.stdinText.length > 8192) {
+        setFunctionInputError(`${index + 1}번 함수 입력은 8192자를 넘을 수 없습니다.`);
+        return null;
+      }
       cases.push({
         function: functionName,
+        ...(draft.stdinText ? { stdin: draft.stdinText } : {}),
         args:
           argsValue as FunctionTestCase["args"],
         kwargs:
@@ -361,7 +367,7 @@ export default function StyleApplySection({
 
     if (!useFunctionTests) {
       setFunctionInputError("");
-      void handleApplyStyle();
+      void handleApplyStyle(undefined, false);
       return;
     }
 
@@ -371,7 +377,8 @@ export default function StyleApplySection({
       return;
     }
 
-    void handleApplyStyle(cases);
+    void handleApplyStyle(cases, false,
+      cases.find((test) => Boolean(test.stdin))?.stdin || undefined);
   };
 
   const missingSyntaxNames = new Set(
@@ -599,6 +606,7 @@ export default function StyleApplySection({
             />
           </div>
 
+          {/* CAPSTONE_BATCH18_CASE_STDIN_ONLY_V1: stdin is provided inside each function test. */}
           {/* ========================================= */}
           {/* Step 03: 함수 반환값 검증 */}
           {/* ========================================= */}
@@ -838,68 +846,27 @@ export default function StyleApplySection({
                             그대로 두시면 됩니다.
                           </p>
 
-                          {/* 실제 Python 코드 예시 */}
-
-                          <div className="mt-4 overflow-hidden rounded-xl border border-blue-100 bg-slate-50">
-                            <div className="border-b border-blue-100 px-4 py-3">
-                              <p className="text-xs font-semibold text-blue-800">
-                                예시 코드로 이해하기
-                              </p>
-
-                              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                                아래 함수는 이름과 문장
-                                끝에 붙일 기호를
-                                전달받습니다.
-                              </p>
-                            </div>
-
-                            <div className="p-4">
-                              <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-800">
-                                {KEYWORD_ARGUMENT_EXAMPLE}
-                              </pre>
-
-                              <div className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-xs leading-relaxed text-slate-600">
-                                <p>
-                                  <span className="font-semibold text-slate-800">
-                                    함수 이름:
-                                  </span>{" "}
-                                  <code className="font-mono text-slate-900">
-                                    greet
-                                  </code>
-                                </p>
-
-                                <p>
-                                  <span className="font-semibold text-slate-800">
-                                    순서대로 넣을 값:
-                                  </span>{" "}
-                                  <code className="font-mono text-slate-900">
-                                    [&quot;Jin&quot;]
-                                  </code>
-                                </p>
-
-                                <p>
-                                  <span className="font-semibold text-slate-800">
-                                    이름을 지정해 넣을 값:
-                                  </span>{" "}
-                                  <code className="font-mono text-slate-900">
-                                    {'{"punctuation": "?"}'}
-                                  </code>
-                                </p>
-
-                                <p className="pt-1 text-slate-500">
-                                  위와 같이 입력하면
-                                  {" "}
-                                  <code className="font-mono">
-                                    greet(&quot;Jin&quot;,
-                                    punctuation=&quot;?&quot;)
-                                  </code>
-                                  {" "}
-                                  호출 결과를 비교합니다.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
                         </div>
+
+                        {/* 사용자 입력값: 이 함수 테스트에만 적용하는 override */}
+                        <div className="lg:col-span-2">
+                          <label htmlFor={`function-stdin-${draft.id}`}
+                            className="mb-2 block text-xs font-semibold text-slate-700">
+                            이 함수 테스트의 사용자 입력값 (stdin) <span className="font-normal text-slate-400">· 선택</span>
+                          </label>
+                          <textarea id={`function-stdin-${draft.id}`} rows={2} maxLength={8192}
+                            value={draft.stdinText} disabled={styleApplyLoading}
+                            onChange={(event) => updateFunctionDraft(draft.id, "stdinText", event.target.value)}
+                            placeholder={"5\n10"}
+                            className="w-full resize-y rounded-lg border border-slate-300 bg-white p-3 font-mono text-sm text-slate-900"
+                          />
+                          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                            입력 예: 5 (한 번), 5와 10 (두 줄). 대괄호 없이 각 줄에 입력합니다.
+                            여러 테스트 중 첫 번째로 작성한 stdin을 기본 실행 비교에도 사용합니다.
+                            함수별 입력은 해당 함수 테스트에서 각각 사용됩니다.
+                          </p>
+                        </div>
+
                       </div>
                     </div>
                   )
@@ -951,6 +918,7 @@ export default function StyleApplySection({
             )}
           </div>
 
+          {/* CAPSTONE_BATCH19_REMOVE_STRICT_UI_V1: optional strict checkbox removed. */}
           {/* 스타일 적용 버튼 */}
 
           <div className="mt-5 flex justify-end">

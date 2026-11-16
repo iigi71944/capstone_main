@@ -1,0 +1,10 @@
+{
+  "revision": "batch17",
+  "tested": 28,
+  "passed": 28,
+  "failed": 0,
+  "linked_tags": 78,
+  "request_stdin": true,
+  "function_stdin": true,
+  "errors": []
+}

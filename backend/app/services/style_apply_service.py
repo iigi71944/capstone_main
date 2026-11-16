@@ -198,6 +198,11 @@ from app.services.improvement.safe_unmapped_patterns_batch13_service import (
     transform_to_safe_boolean_literal_style,
 )
 
+# CAPSTONE_BATCH19_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_comparison_batch19_service import (
+    transform_operator_comparison_to_syntax,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
@@ -251,6 +256,8 @@ def _get_transform_function(action: str):
         "create_safe_next_default": transform_try_to_next_default,
         "create_safe_operator_call": transform_arithmetic_to_operator_call,
         "create_safe_arithmetic_expression": transform_operator_call_to_arithmetic,
+        # CAPSTONE_BATCH19_DISPATCH_MAP_V1
+        "create_safe_operator_comparison": transform_operator_comparison_to_syntax,
         # Safe structural-pattern transforms (batch 2).
         "create_safe_explicit_exception": transform_suppress_to_try,
         "create_safe_exception_suppress": transform_try_to_suppress,
@@ -380,6 +387,7 @@ def apply_coding_style(
     style: dict,
     function_cases: list[dict] | None = None,
     strict_runtime_validation: bool = False,
+    stdin: str | None = None,
 ):
     """Keep the six-item API return contract and rollback semantics.
 
@@ -478,6 +486,7 @@ def apply_coding_style(
                 original_code=code,
                 transformed_code=transformed_code,
                 function_cases=function_cases,
+                **({"stdin": stdin} if stdin is not None else {}),
             )
         except Exception as error:
             verifier_malformed = True

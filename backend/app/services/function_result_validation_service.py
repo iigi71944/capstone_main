@@ -11,7 +11,9 @@ import keyword
 import math
 import uuid
 
-from app.services.execution_validation_service import execute_python_code
+from app.services.execution_validation_service import (
+    execute_python_code, valid_stdin_input,
+)
 
 
 MAX_CASES = 8
@@ -91,6 +93,9 @@ def _validated_case(case: dict) -> tuple[str, list, dict]:
                 "Invalid keyword argument or value."
             )
 
+    case_stdin = case.get("stdin")
+    if case_stdin is not None and not valid_stdin_input(case_stdin):
+        raise ValueError("Function-test stdin exceeds limits or is not text.")
     return function_name, args, kwargs
 
 
@@ -248,6 +253,7 @@ def _compare_case(
     original_code: str,
     transformed_code: str,
     case: dict,
+    stdin: str | None = None,
 ) -> dict:
     function_name, args, kwargs = _validated_case(case)
 
@@ -273,9 +279,16 @@ def _compare_case(
         marker,
     )
 
-    # Each program runs in its own Python subprocess.
-    original = execute_python_code(original_program)
-    transformed = execute_python_code(transformed_program)
+    # CAPSTONE_BATCH17_STDIN_V1: same stdin for both programs; case-specific override.
+    actual_stdin = case.get("stdin")
+    if actual_stdin is None:
+        actual_stdin = stdin
+    if actual_stdin is None:
+        original = execute_python_code(original_program)
+        transformed = execute_python_code(transformed_program)
+    else:
+        original = execute_python_code(original_program, stdin=actual_stdin)
+        transformed = execute_python_code(transformed_program, stdin=actual_stdin)
 
     item = {
         "function": function_name,
@@ -384,6 +397,7 @@ def verify_function_results(
     original_code: str,
     transformed_code: str,
     cases: list[dict],
+    stdin: str | None = None,
 ) -> dict:
     """
     Execute explicit function test cases for both programs.
@@ -410,6 +424,8 @@ def verify_function_results(
             "function test cases."
         )
 
+    if stdin is not None and not valid_stdin_input(stdin):
+        raise ValueError("Shared stdin exceeds limits or is not text.")
     # Validate all test inputs before executing any supplied code.
     for case in cases:
         _validated_case(case)
@@ -419,6 +435,7 @@ def verify_function_results(
             original_code,
             transformed_code,
             case,
+            **({"stdin": stdin} if stdin is not None else {}),
         )
         for case in cases
     ]

@@ -1,0 +1,10 @@
+{
+  "revision": "batch16",
+  "tests": 27,
+  "passed": 27,
+  "failed": 0,
+  "registry_linked": 78,
+  "request_has_strict_option": true,
+  "service_accepts_strict_option": true,
+  "issues": []
+}

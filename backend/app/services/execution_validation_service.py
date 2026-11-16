@@ -17,6 +17,9 @@ from typing import Optional
 
 DEFAULT_TIMEOUT_SECONDS = 2.0
 MAX_OUTPUT_LENGTH = 10_000
+# CAPSTONE_BATCH17_STDIN_V1: user-supplied input is bounded, never a sandbox.
+MAX_STDIN_CHARS = 8192
+MAX_STDIN_NEWLINES = 128
 TRUNCATION_NOTICE = "\n...[출력 길이 제한으로 일부 생략됨]"
 
 
@@ -78,6 +81,12 @@ def _trim_output(value: str) -> str:
     return value[:MAX_OUTPUT_LENGTH] + TRUNCATION_NOTICE
 
 
+def valid_stdin_input(value: object) -> bool:
+    """Bound user-provided stdin; type must be a real string."""
+    return (type(value) is str and len(value) <= MAX_STDIN_CHARS
+            and value.count("\n") <= MAX_STDIN_NEWLINES)
+
+
 def _get_call_name(node: ast.Call) -> Optional[str]:
     if isinstance(node.func, ast.Name):
         return node.func.id
@@ -85,7 +94,7 @@ def _get_call_name(node: ast.Call) -> Optional[str]:
     return None
 
 
-def _find_block_reason(code: str) -> Optional[str]:
+def _find_block_reason(code: str, *, allow_input: bool = False) -> Optional[str]:
     try:
         tree = ast.parse(code)
 
@@ -115,7 +124,9 @@ def _find_block_reason(code: str) -> Optional[str]:
         if isinstance(node, ast.Call):
             call_name = _get_call_name(node)
 
-            if call_name in BLOCKED_CALL_NAMES:
+            if call_name in BLOCKED_CALL_NAMES and not (
+                allow_input and call_name == "input"
+            ):
                 return (
                     f"실행 검증에서 허용하지 않는 함수 "
                     f"'{call_name}'을(를) 사용하고 있습니다."
@@ -145,6 +156,8 @@ def _blocked_result(reason: str) -> ExecutionResult:
 def execute_python_code(
     code: str,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    *,
+    stdin: Optional[str] = None,
 ) -> ExecutionResult:
     """
     Python 코드를 별도 프로세스에서 실제 실행합니다.
@@ -161,7 +174,13 @@ def execute_python_code(
     subprocess와 -I만으로는 완전한 보안 격리가 불가능합니다.
     """
 
-    block_reason = _find_block_reason(code)
+    # CAPSTONE_BATCH17_STDIN_V1: input() is permitted only with explicitly supplied stdin.
+    if stdin is not None and not valid_stdin_input(stdin):
+        return _blocked_result("표준 입력 길이 또는 형식 제한을 초과했습니다.")
+    block_reason = (
+        _find_block_reason(code) if stdin is None
+        else _find_block_reason(code, allow_input=True)
+    )
 
     if block_reason:
         return _blocked_result(block_reason)
@@ -179,7 +198,8 @@ def execute_python_code(
             encoding="utf-8",
             errors="replace",
             timeout=timeout_seconds,
-            stdin=subprocess.DEVNULL,
+            **({"stdin": subprocess.DEVNULL} if stdin is None
+               else {"input": stdin}),
         )
 
         return ExecutionResult(
@@ -271,6 +291,7 @@ def _verification_result(
 def _verify_observed_execution(
     original_code: str,
     transformed_code: str,
+    stdin: Optional[str] = None,
 ) -> dict:
     """
     기존 실행 결과 비교 기능입니다.
@@ -286,8 +307,12 @@ def _verify_observed_execution(
     - 예외 요약
     """
 
-    original = execute_python_code(original_code)
-    transformed = execute_python_code(transformed_code)
+    if stdin is None:
+        original = execute_python_code(original_code)
+        transformed = execute_python_code(transformed_code)
+    else:
+        original = execute_python_code(original_code, stdin=stdin)
+        transformed = execute_python_code(transformed_code, stdin=stdin)
 
     if original.blocked or transformed.blocked:
         reasons = []
@@ -452,6 +477,7 @@ def verify_execution_equivalence(
     original_code: str,
     transformed_code: str,
     function_cases: list[dict] | None = None,
+    stdin: Optional[str] = None,
 ) -> dict:
     """
     변환 전후 코드의 실제 실행 결과를 비교합니다.
@@ -483,8 +509,8 @@ def verify_execution_equivalence(
     """
 
     result = _verify_observed_execution(
-        original_code,
-        transformed_code,
+        original_code, transformed_code,
+        **({"stdin": stdin} if stdin is not None else {}),
     )
 
     # 기존 스타일 적용 서비스는 function_cases를 전달하지
@@ -536,9 +562,8 @@ def verify_execution_equivalence(
     )
 
     function_result = verify_function_results(
-        original_code,
-        transformed_code,
-        function_cases,
+        original_code, transformed_code, function_cases,
+        **({"stdin": stdin} if stdin is not None else {}),
     )
 
     result["function_verification"] = function_result

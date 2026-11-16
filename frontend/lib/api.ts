@@ -76,7 +76,9 @@ export async function analyzeCode(
 export async function applyCodingStyle(
   code: string,
   style: CodingStyle,
-  functionCases?: FunctionTestCase[] | null
+  functionCases?: FunctionTestCase[] | null,
+  strictRuntimeValidation: boolean = false,
+  stdin?: string
 ): Promise<StyleApplyResponse> {
   const requestBody: StyleApplyRequest = {
     language: "python",
@@ -88,6 +90,15 @@ export async function applyCodingStyle(
   // undefined 또는 null이면 기존 API 요청 형태를 유지합니다.
   if (functionCases != null) {
     requestBody.function_cases = functionCases;
+  }
+
+  // CAPSTONE_BATCH16_STRICT_VERIFY_V1: omit the field for existing clients.
+  if (strictRuntimeValidation) {
+    requestBody.strict_runtime_validation = true;
+  }
+  // CAPSTONE_BATCH17_STDIN_V1: omit shared stdin for legacy requests.
+  if (stdin !== undefined) {
+    requestBody.stdin = stdin;
   }
 
   const response = await fetch(

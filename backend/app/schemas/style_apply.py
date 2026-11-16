@@ -61,6 +61,10 @@ class FunctionTestCase(BaseModel):
     )
 
 
+    # CAPSTONE_BATCH17_STDIN_V1: optional stdin for this specific function call.
+    stdin: Optional[str] = Field(default=None, max_length=8192)
+
+
 class StyleApplyRequest(BaseModel):
     language: str
     code: str
@@ -75,6 +79,11 @@ class StyleApplyRequest(BaseModel):
         min_length=1,
         max_length=8,
     )
+
+    # CAPSTONE_BATCH16_STRICT_VERIFY_V1: opt-in; old clients remain permissive.
+    strict_runtime_validation: bool = False
+    # CAPSTONE_BATCH17_STDIN_V1: shared stdin for base execution and function cases.
+    stdin: Optional[str] = Field(default=None, max_length=8192)
 
 
 # ============================================================

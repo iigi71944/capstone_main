@@ -7,6 +7,9 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_BATCH19_REGISTRY_V1: narrow operator conversions.
+    "비교 연산": "create_safe_operator_comparison",
+    "함수 호출": "create_safe_operator_call",
     # CAPSTONE_UNMAPPED_BATCH13_REGISTRY_V1: literal builtin calls only.
     "문자열 리터럴": "create_safe_string_literal",
     "숫자 리터럴": "create_safe_number_literal",

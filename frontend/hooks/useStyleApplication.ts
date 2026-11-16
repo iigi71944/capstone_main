@@ -52,8 +52,11 @@ export function useStyleApplication(savedStyles: SharedCodingStyle[]) {
     if (selectedStyleId === id) resetSelection();
   };
 
+  // CAPSTONE_BATCH16_STRICT_VERIFY_V1: forward the opt-in to API.
   const handleApplyStyle = async (
-    functionCases?: FunctionTestCase[] | null
+    functionCases?: FunctionTestCase[] | null,
+    strictRuntimeValidation: boolean = false,
+    stdin?: string
   ) => {
     if (!selectedStyle) {
       alert("적용할 코딩 스타일을 선택해주세요.");
@@ -69,7 +72,9 @@ export function useStyleApplication(savedStyles: SharedCodingStyle[]) {
       const applyResponse = await applyCodingStyle(
         targetCode,
         selectedStyle,
-        functionCases
+        functionCases,
+        strictRuntimeValidation,
+        stdin
       );
 
       if (!applyResponse.success) {

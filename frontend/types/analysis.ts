@@ -70,6 +70,7 @@ export type JsonValue =
   | { [key: string]: JsonValue };
 
 export type FunctionTestCase = {
+  stdin?: string | null; // optional case-specific stdin
   function: string;
   args?: JsonValue[];
   kwargs?: Record<string, JsonValue>;
@@ -152,6 +153,10 @@ export type StyleApplyRequest = {
 
   // 지정하지 않으면 기존 실행 출력 비교만 수행합니다.
   function_cases?: FunctionTestCase[] | null;
+  // CAPSTONE_BATCH16_STRICT_VERIFY_V1: optional for backward compatibility.
+  strict_runtime_validation?: boolean;
+  // CAPSTONE_BATCH17_STDIN_V1: optional shared input text.
+  stdin?: string | null;
 };
 
 // ============================================================

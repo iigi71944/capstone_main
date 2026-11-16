@@ -44,9 +44,10 @@ class Batch13IntegrationTests(unittest.TestCase):
               and node.target.id == 'CREATE_ACTION_BY_TAG']
         self.assertEqual(len(ds), 1)
         keys = [key.value for key in ds[0].keys]
-        self.assertEqual(len(keys), 78)
+        # CAPSTONE_BATCH19_LEGACY_TEST_V1: later batches may add unique tags.
+        self.assertGreaterEqual(len(keys), 78)
         self.assertEqual(len(keys), len(set(keys)))
-        self.assertEqual(len(mapping.COMPARE_ONLY_TAGS), 24)
+        self.assertEqual(len(mapping.COMPARE_ONLY_TAGS), 102 - len(keys))
         self.assertEqual(audit_style_registry()['issues'], [])
 
     def test_existing_metrics_select_only_supported_target(self):

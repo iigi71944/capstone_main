@@ -593,6 +593,26 @@ def build_transform_plan(diff: dict) -> dict:
                 "reason": "저장된 기존 리터럴 메트릭을 반영하되 기본 내장 함수의 상수 호출만 변환합니다.",
             })
 
+    # CAPSTONE_BATCH19_METRIC_GATE_V1: require saved and target evidence.
+    # Unobserved or ambiguous styles never create calls or comparisons.
+    saved_b19 = _get_style_metrics(diff)
+    target_b19 = _get_target_metrics(diff)
+    for tag_b19, desired_b19, evidence_b19, action_b19 in (
+        ("비교 연산", "compare_count", ("call_count", "import_count"),
+         "create_safe_operator_comparison"),
+        ("함수 호출", "call_count", ("bin_op_count", "import_count"),
+         "create_safe_operator_call"),
+    ):
+        if (_metric_count(saved_b19, desired_b19) > 0
+                and _metric_count(target_b19, desired_b19) == 0
+                and all(_metric_count(target_b19, key) > 0 for key in evidence_b19)
+                and not any(item.get("action") == action_b19 for item in actions)):
+            actions.append({
+                "tag": tag_b19,
+                "action": action_b19,
+                "reason": "저장 스타일의 기존 메트릭과 대상 operator 구문을 확인한 안전 패턴만 변환합니다.",
+            })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -601,6 +621,8 @@ def build_transform_plan(diff: dict) -> dict:
         if action is None:
             compare_only.append(tag_name)
             continue
+        if tag_name in {"비교 연산", "함수 호출"}:
+            continue  # Batch 19: metric gate above is required.
 
         # CAPSTONE_UNMAPPED_BATCH13_METRIC_ONLY_V1: never select these actions
         # from a missing-tag record alone; only the gated metrics above may.

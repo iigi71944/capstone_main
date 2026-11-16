@@ -59,6 +59,11 @@ def apply_style_api(request: StyleApplyRequest):
             else None
         )
 
+        # CAPSTONE_BATCH16_STRICT_VERIFY_V1: retain compatibility with older request stubs.
+        strict_runtime_validation = getattr(request, "strict_runtime_validation", False)
+        # CAPSTONE_BATCH17_STDIN_V1: legacy mocked requests may not have a stdin field.
+        stdin_input = getattr(request, "stdin", None)
+
         (
             transformed_code,
             summary,
@@ -70,6 +75,8 @@ def apply_style_api(request: StyleApplyRequest):
             code=request.code,
             style=request.style.model_dump(),
             function_cases=function_cases,
+            strict_runtime_validation=strict_runtime_validation,
+            **({"stdin": stdin_input} if stdin_input is not None else {}),
         )
 
         # CAPSTONE_SAVED_FORMAT_APPLY_V1: 기존 문법/개념 변환과 실행 검증이 끝난 뒤 서식을 적용합니다.
@@ -125,6 +132,7 @@ def apply_style_api(request: StyleApplyRequest):
                     original_code=request.code,
                     transformed_code=transformed_code,
                     function_cases=function_cases,
+                    **({"stdin": stdin_input} if stdin_input is not None else {}),
                 )
             except Exception as error:
                 final_check = None
@@ -146,6 +154,11 @@ def apply_style_api(request: StyleApplyRequest):
                     and isinstance(final_check.get("original"), dict)
                     and isinstance(final_check.get("transformed"), dict)
                 )
+
+            # CAPSTONE_BATCH16_STRICT_VERIFY_V1: strict mode also rejects uncertain formatting.
+            if (check_valid and strict_runtime_validation
+                    and final_check["status"] == "not_verified"):
+                check_valid = False
 
             if not check_valid:
                 # Missing/contradictory verification must not silently count
@@ -196,6 +209,9 @@ def apply_style_api(request: StyleApplyRequest):
         # style action changed the Python AST or the earlier action rolled back.
         displayed_code = strip_style_output_comments(transformed_code)
         if displayed_code != transformed_code:
+            # Before cleanup: preserve the exact prior verified source.
+            code_before_cleanup = transformed_code
+            verification_before_cleanup = execution_verification
             transformed_code = displayed_code
             # Final verification must describe the exact displayed code.
             # Removing actual docstrings may change __doc__; never silently
@@ -205,6 +221,7 @@ def apply_style_api(request: StyleApplyRequest):
                     original_code=request.code,
                     transformed_code=transformed_code,
                     function_cases=function_cases,
+                    **({"stdin": stdin_input} if stdin_input is not None else {}),
                 )
             except Exception as cleanup_error:
                 cleanup_check = None
@@ -246,6 +263,20 @@ def apply_style_api(request: StyleApplyRequest):
             ) + (
                 " 최종 표시 코드에서 주석과 독립 문자열 설명문을 제외했습니다."
             )
+            # CAPSTONE_BATCH16_STRICT_VERIFY_V1: never return unverified cleanup in strict mode.
+            if strict_runtime_validation and (
+                not cleanup_valid or cleanup_check["status"] != "equivalent"
+            ):
+                transformed_code = code_before_cleanup
+                execution_verification = verification_before_cleanup
+                summary = summary.replace(
+                    " 최종 표시 코드에서 주석과 독립 문자열 설명문을 제외했습니다.",
+                    " 엄격 검증 설정에 따라 주석·독립 문자열 제거를 취소했습니다.",
+                )
+                warnings.append(
+                    "엄격 실행 검증: 주석·독립 문자열 제거의 실행 동등성이 "
+                    "확인되지 않아 해당 변경을 취소했습니다."
+                )
 
         return StyleApplyResponse(
             success=True,
