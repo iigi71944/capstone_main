@@ -119,6 +119,30 @@ def _sorted_default(code, explicit):
     return _replace(code, source, edits)
 
 
+def _single_literal_string_binding(tree, name, call_line):
+    """Allow a top-level str assignment, written exactly once before a call.
+
+    This is intentionally narrow; no interprocedural inference, name aliasing,
+    rebinding, import, deletion or mutable receiver type is accepted. The
+    caller also enforces the pre-existing _safe_module code restrictions.
+    """
+    bindings = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and node.id == name
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+    ]
+    if len(bindings) != 1 or not isinstance(bindings[0].ctx, ast.Store):
+        return False
+    for stmt in tree.body:
+        if (isinstance(stmt, ast.Assign) and len(stmt.targets) == 1
+                and isinstance(stmt.targets[0], ast.Name)
+                and stmt.targets[0].id == name and stmt.lineno < call_line
+                and isinstance(stmt.value, ast.Constant)
+                and type(stmt.value.value) is str):
+            return True
+    return False
+
+
 def _strip_default(code, explicit):
     parsed = _parse(code)
     if parsed is None:
@@ -130,8 +154,19 @@ def _strip_default(code, explicit):
     for call in _assignment_calls(tree):
         func = call.func
         if not (isinstance(func, ast.Attribute) and func.attr == 'strip'
-                and isinstance(func.value, ast.Constant)
-                and type(func.value.value) is str and not call.keywords):
+                and not call.keywords):
+            continue
+        receiver = func.value
+        # CAPSTONE_BATCH36_2_SAFE_NAMED_STRIP_V1: a provably unchanged local
+        # module-level string constant is also a safe receiver. Refuse shadowed,
+        # rebound, deleted, imported, computed, or scoped variable bindings.
+        if isinstance(receiver, ast.Constant):
+            if type(receiver.value) is not str:
+                continue
+        elif isinstance(receiver, ast.Name):
+            if not _single_literal_string_binding(tree, receiver.id, call.lineno):
+                continue
+        else:
             continue
         start, end = _span(call, offsets)
         a_start, a_end = _span(func.value, offsets)
