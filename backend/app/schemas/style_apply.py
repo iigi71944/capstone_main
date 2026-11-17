@@ -22,7 +22,10 @@ class CodingStylePayload(BaseModel):
     description: str
     syntax_tags: List[StyleTagItem]
     concept_tags: List[StyleTagItem]
-    metrics: Dict[str, int]
+    # CAPSTONE_BATCH35_4_METRIC_VERSION_V1: legacy styles may omit metrics.
+    # Validation is performed by the version-aware service, not Pydantic int coercion.
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    metrics_version: Optional[int] = None
     created_at: str
 
     # CAPSTONE_SAVED_FORMAT_APPLY_V1: 기존 스타일 JSON의 서식 프로필을 보존

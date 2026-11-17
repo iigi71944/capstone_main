@@ -2,6 +2,7 @@
 
 from app.services.style_tag_transform_map_service import get_create_action_for_tag
 from app.services.style_tag_action_policy_service import finalize_tag_action_policies
+from app.services.style_action_diagnostic_service import trace_plan_filter
 # CAPSTONE_BATCH28_PLAN_IMPORT_V1
 
 FILTER_CONCEPT_TAG = "데이터 필터링 구조"
@@ -413,6 +414,30 @@ def _explicit_reverse_actions(diff: dict) -> list[dict]:
 
 
 def build_transform_plan(diff: dict) -> dict:
+    # CAPSTONE_BATCH35_4_METRIC_VERSION_V1: reject unsafe declared snapshots.
+    info = diff.get("style_metrics_info", {})
+    if isinstance(info, dict) and info.get("automatic_transforms_allowed") is False:
+        explanation = (
+            "저장 메트릭 버전이 지원되지 않거나, 선언된 버전의 메트릭에 "
+            "누락·잘못된 값이 있어 자동 변환을 안전하게 결정할 수 없습니다."
+        )
+        skipped = []
+        known = set()
+        for item in [*diff.get("missing_syntax_tags", []),
+                     *diff.get("missing_concept_tags", [])]:
+            tag = _get_tag_name(item)
+            if tag and tag not in known:
+                known.add(tag)
+                skipped.append({
+                    "tag": tag,
+                    "status": "not_selected",
+                    "reason_code": "untrusted_metric_snapshot",
+                    "reason": explanation,
+                })
+        return {
+            "actions": [], "compare_only": [], "compare_only_details": [],
+            "omitted_actions": [], "not_selected_tags": skipped,
+        }
     missing_syntax_tags = diff.get("missing_syntax_tags", [])
     missing_concept_tags = diff.get("missing_concept_tags", [])
     actions: list[dict] = _explicit_reverse_actions(diff)
@@ -1021,14 +1046,55 @@ def build_transform_plan(diff: dict) -> dict:
             ),
         })
 
-    # CAPSTONE_BATCH28_PLAN_FINALIZE_V1: tag-specific policy IDs and shared-engine
-    # deduplication only after legacy direction/conflict resolution completes.
-    # Public action strings and compare-only semantics are unchanged.
+    # CAPSTONE_BATCH35_3_REASON_TRACE_V1: observe existing resolver stages.
+    # Resolver order, action order, and conflict behavior remain unchanged.
+    selected = finalize_tag_action_policies(actions)
+    omitted_actions = trace_plan_filter(actions, selected, "policy_initial")
+    for stage_name, resolver in (
+        ("collection", _resolve_collection_actions),
+        ("dictionary", _resolve_dictionary_actions),
+        ("iteration", _resolve_iteration_actions),
+        ("bidirectional_families", _resolve_new_family_actions),
+    ):
+        resolved = resolver(selected)
+        omitted_actions.extend(trace_plan_filter(selected, resolved, stage_name))
+        selected = resolved
+    final_actions = finalize_tag_action_policies(selected)
+    omitted_actions.extend(trace_plan_filter(selected, final_actions, "policy_final"))
+    compare_tags = sorted(set(compare_only))
+    compare_details = []
+    for tag in compare_tags:
+        unmapped = get_create_action_for_tag(tag) is None
+        compare_details.append({
+            "tag": tag,
+            "reason_code": "no_registered_transformer" if unmapped else "insufficient_preference_evidence",
+            "reason": (
+                "해당 태그에 등록된 자동 변환 액션이 없습니다."
+                if unmapped else
+                "변환 액션은 등록되어 있지만 적용 방향을 결정할 명시적 스타일 근거가 부족합니다."
+            ),
+        })
+    # Some metric-gated tags are deliberately never proposed as actions.
+    # Record their non-selection separately rather than implying an attempt.
+    explained_tags = ({item.get("tag") for item in final_actions}
+                      | {item.get("tag") for item in omitted_actions}
+                      | set(compare_tags))
+    not_selected_tags = []
+    for item in [*missing_syntax_tags, *missing_concept_tags]:
+        tag = _get_tag_name(item)
+        if tag and tag not in explained_tags and not any(
+            row["tag"] == tag for row in not_selected_tags
+        ):
+            not_selected_tags.append({
+                "tag": tag,
+                "status": "not_selected",
+                "reason_code": "selection_conditions_unmet",
+                "reason": "태그만으로 자동 변환하지 않으며, 저장 메트릭·대상 형태·우선순위 조건을 충족하는 액션이 선택되지 않았습니다.",
+            })
     return {
-        "actions": finalize_tag_action_policies(
-            _resolve_new_family_actions(_resolve_iteration_actions(
-                _resolve_dictionary_actions(_resolve_collection_actions(finalize_tag_action_policies(actions)))
-            ))
-        ),
-        "compare_only": sorted(set(compare_only)),
+        "actions": final_actions,
+        "compare_only": compare_tags,
+        "compare_only_details": compare_details,
+        "omitted_actions": omitted_actions,
+        "not_selected_tags": not_selected_tags,
     }

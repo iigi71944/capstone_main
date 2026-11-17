@@ -7,6 +7,7 @@ from app.services.style_diff_service import (
     compare_style_with_target_code,
 )
 from app.services.style_transform_plan_service import build_transform_plan
+from app.services.style_action_diagnostic_service import build_transform_diagnostics
 # CAPSTONE_BATCH14_CONFLICT_IMPORT_V1
 from app.services.style_action_conflict_service import mark_reverted_actions
 # CAPSTONE_BATCH15_PARTIAL_CONFLICT_IMPORT_V1
@@ -424,6 +425,9 @@ def _apply_style_action(
     tag_name = action_item.get("tag", "")
     reason = action_item.get("reason", "")
     result = {"tag": tag_name, "action": action, "status": ""}
+    # CAPSTONE_BATCH35_3_PLAN_REASON_V1: preserve plan-selection context.
+    if isinstance(reason, str) and reason:
+        result["plan_reason"] = reason
     # CAPSTONE_BATCH28_APPLY_LEDGER_V1: expose independent policy intent while
     # retaining the real, previously tested action and transformer function.
     if isinstance(action_item.get("policy_action"), str):
@@ -504,6 +508,12 @@ def apply_coding_style(
     action_rules_by_step: list[list[str]] = []
 
     initial_diff = compare_style_with_target_code(style=style, code=code)
+    # CAPSTONE_BATCH35_4_METRIC_VERSION_V1: warn when versioned evidence is unsafe.
+    metric_info = initial_diff.get("style_metrics_info", {})
+    if isinstance(metric_info, dict) and not metric_info.get("automatic_transforms_allowed", True):
+        _add_unique(warnings,
+                    "저장 메트릭 버전 또는 필수 메트릭 값이 유효하지 않아 "
+                    "자동 변환을 생략했습니다. 스타일 비교 결과는 계속 제공됩니다.")
     transform_plan = build_transform_plan(initial_diff)
     transformed_code = code
 
@@ -688,6 +698,10 @@ def apply_coding_style(
         _add_unique(warnings, note)
 
     final_diff = compare_after_transform(style=style, transformed_code=transformed_code)
+    # CAPSTONE_BATCH35_3_FINAL_DIAGNOSTICS_V1: additive detail in final_diff.
+    final_diff["transform_diagnostics"] = build_transform_diagnostics(
+        transform_plan, action_results, execution_verification
+    )
     compare_only_tags = transform_plan.get("compare_only", [])
     if compare_only_tags:
         _add_unique(

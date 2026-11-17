@@ -138,6 +138,8 @@ export interface CodingStyle {
   syntax_tags: SyntaxTag[];
   concept_tags: ConceptTag[];
   metrics: Record<string, number>;
+  /** CAPSTONE_BATCH35_4_METRIC_VERSION_V1: absent for historical saved styles. */
+  metrics_version?: number;
   formatting_style?: Record<string, unknown>;
   created_at: string;
 }

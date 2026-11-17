@@ -3,6 +3,7 @@ from app.services.style_analysis_comment_filter_service import without_analysis_
 from app.services.parser_service import parse_code
 from app.services.syntax_tag_service import extract_syntax_tags
 from app.services.metric_service import calculate_metrics
+from app.services.style_metric_snapshot_service import normalize_style_metric_snapshot
 from app.services.concept_tag_service import extract_concept_tags
 from app.services.tag_rule_service import CONCEPT_TAG_RULES
 
@@ -78,7 +79,8 @@ def compare_style_with_target_code(style: dict, code: str) -> dict:
 
     # 저장된 스타일에 포함된 메트릭을 가져옵니다.
     # 과거 스타일 데이터는 빈 딕셔너리로 처리합니다.
-    style_metrics = _get_style_metrics(style)
+    # CAPSTONE_BATCH35_4_METRIC_VERSION_V1: track observed counters without inventing zeros.
+    style_metrics, style_metrics_info = normalize_style_metric_snapshot(style)
 
     # 과거 저장된 스타일의 삭제/미등록 개념 태그는
     # 비교 및 변환 목표에서만 제외합니다.
@@ -131,6 +133,7 @@ def compare_style_with_target_code(style: dict, code: str) -> dict:
 
         # 저장된 스타일 분석 당시의 메트릭
         "style_metrics": style_metrics,
+        "style_metrics_info": style_metrics_info,
 
         # 저장된 스타일에는 있지만 대상 코드에는 없는 태그
         "missing_syntax_tags": [

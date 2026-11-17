@@ -206,6 +206,9 @@ export function buildCodingStyleFromAnalysis(
 
     metrics: analysis.metrics,
 
+    // CAPSTONE_BATCH35_4_METRIC_VERSION_V1: new snapshots explicitly declare the 81-metric schema.
+    metrics_version: 1,
+
     // CAPSTONE_FORMATTING_STYLE_GIT_ALIGNED_V2: 코드에서 추출한 서식 취향을 함께 저장합니다.
     formatting_style: analysis.formatting_style,
 
