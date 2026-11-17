@@ -245,9 +245,42 @@ from app.services.improvement.safe_batch27_service import (
     transform_literal_private_main_to_procedure,
 )
 
+# CAPSTONE_BATCH29_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch29_service import (
+    transform_sorted_explicit_reverse_default,
+    transform_sorted_implicit_reverse_default,
+    transform_strip_explicit_none_default,
+    transform_strip_implicit_none_default,
+)
+
+# CAPSTONE_BATCH31_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch31_service import (
+    transform_default_parameter,
+    transform_varargs_parameter,
+    transform_kwargs_parameter,
+    transform_async_function_definition,
+    transform_async_await,
+    transform_async_processing_structure,
+    transform_long_function_structure,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_BATCH31_DISPATCH_MAP_V1
+        # CAPSTONE_BATCH31_STATIC_DISPATCH_FIX_V1: 정적 감사와 실제 변환기가 동일한 등록표를 공유합니다.
+        "create_safe_closed_default_parameter": transform_default_parameter,
+        "create_safe_closed_varargs": transform_varargs_parameter,
+        "create_safe_closed_kwargs": transform_kwargs_parameter,
+        "create_safe_closed_async_definition": transform_async_function_definition,
+        "create_safe_closed_await": transform_async_await,
+        "create_safe_closed_async_structure": transform_async_processing_structure,
+        "create_safe_closed_long_function": transform_long_function_structure,
+        # CAPSTONE_BATCH29_DISPATCH_MAP_V1
+        "create_safe_explicit_sorted_reverse": transform_sorted_explicit_reverse_default,
+        "create_safe_implicit_sorted_reverse": transform_sorted_implicit_reverse_default,
+        "create_safe_explicit_strip_default": transform_strip_explicit_none_default,
+        "create_safe_implicit_strip_default": transform_strip_implicit_none_default,
         # CAPSTONE_BATCH27_DISPATCH_MAP_V1
         "create_safe_module_io_open": transform_safe_module_io_open,
         "create_safe_file_io_with": transform_safe_file_io_with,
@@ -391,6 +424,12 @@ def _apply_style_action(
     tag_name = action_item.get("tag", "")
     reason = action_item.get("reason", "")
     result = {"tag": tag_name, "action": action, "status": ""}
+    # CAPSTONE_BATCH28_APPLY_LEDGER_V1: expose independent policy intent while
+    # retaining the real, previously tested action and transformer function.
+    if isinstance(action_item.get("policy_action"), str):
+        for key in ("policy_action", "policy_family", "policy_role", "policy_source_tags"):
+            if key in action_item:
+                result[key] = action_item[key]
     transform_func = _get_transform_function(action)
 
     if transform_func is None:

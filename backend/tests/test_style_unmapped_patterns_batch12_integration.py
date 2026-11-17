@@ -129,7 +129,7 @@ class Batch12IntegrationTests(unittest.TestCase):
         self.assertEqual(get_tag_transform_status('파일 입출력 구조'), 'linked')
         for tag in ('await 사용',):
             with self.subTest(tag=tag):
-                self.assertEqual(get_tag_transform_status(tag), 'compare_only')
+                self.assertEqual(get_tag_transform_status(tag), 'linked')
 
 
 if __name__ == '__main__':

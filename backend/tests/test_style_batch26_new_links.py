@@ -233,10 +233,12 @@ class Batch26Safety(unittest.TestCase):
         self.assertNotIn('create_safe_nested_input_structure', actions)
         self.assertNotIn('create_safe_global_calculation', actions)
 
-    def test_previous_unmapped_tags_stay_compare_only(self):
-        self.assertIn('기본 매개변수', COMPARE_ONLY_TAGS)
-        self.assertIn('비동기 함수 정의', COMPARE_ONLY_TAGS)
-        self.assertNotIn('파일 입출력 구조', COMPARE_ONLY_TAGS)
+    def test_previous_unmapped_tags_now_have_guarded_links(self):
+        # CAPSTONE_BATCH31_LEGACY_STATUS_FIX_V2: 현재 태그 연결 상태 기준.
+        for tag in ('기본 매개변수', '비동기 함수 정의', '파일 입출력 구조'):
+            with self.subTest(tag=tag):
+                self.assertIn(tag, CREATE_ACTION_BY_TAG)
+                self.assertNotIn(tag, COMPARE_ONLY_TAGS)
 
 
 if __name__ == '__main__':

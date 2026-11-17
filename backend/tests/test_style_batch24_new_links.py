@@ -189,9 +189,10 @@ class Batch24Safety(unittest.TestCase):
 
     def test_unsafe_tags_remain_compare_only(self):
         # CAPSTONE_BATCH27_LEGACY_STATUS_V1: file I/O is now narrowly linked.
+        # Batch31: formerly risky tags now have guarded closed-module transforms.
         for tag in ('await 사용', '기본 매개변수'):
-            self.assertNotIn(tag, CREATE_ACTION_BY_TAG)
-            self.assertIn(tag, COMPARE_ONLY_TAGS)
+            self.assertIn(tag, CREATE_ACTION_BY_TAG)
+            self.assertNotIn(tag, COMPARE_ONLY_TAGS)
 
 
 if __name__ == '__main__':

@@ -120,7 +120,7 @@ class Batch10WiringTests(unittest.TestCase):
         self.assertIn('enumerate(items)', applied)
 
     def test_no_unintended_comparison_only_change(self):
-        self.assertEqual(get_tag_transform_status('await 사용'), 'compare_only')
+        self.assertEqual(get_tag_transform_status('await 사용'), 'linked')
 
 
 if __name__ == '__main__':

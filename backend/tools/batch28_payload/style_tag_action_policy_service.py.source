@@ -1,0 +1,158 @@
+"""Batch 28: independent tag-policy identities over proven shared transformers.
+
+A syntactic tag constrains expression choice; a conceptual tag proposes a
+structure. A policy is a distinct *decision*, not a claim that each tag now
+has a semantically distinct low-level transformer. Batch 29 can enrich these
+policies with measured details without changing saved style schema yet.
+
+The public tag->action registry remains unchanged for legacy saved styles.
+Only existing action handlers are executed. Unknown/reverse actions are left
+untouched, and ambiguous shared actions are executed at most once per family.
+"""
+from __future__ import annotations
+
+from app.services.style_tag_transform_map_service import CREATE_ACTION_BY_TAG
+from app.services.tag_rule_service import SYNTAX_TAG_RULES, CONCEPT_TAG_RULES
+
+# Each pair formerly shared a transformer. Preserve all original tag names.
+# The last pair uses TWO action names but ONE underlying Python transformer.
+SHARED_TAG_FAMILIES: dict[str, tuple[str, str]] = {
+    "function_call": ("함수 호출", "함수 호출 중심 구조"),
+    "sorting": ("sorted 사용", "정렬 중심 구조"),
+    "attribute": ("속성 접근", "객체 접근 중심 구조"),
+    "parameters": ("키워드 인자 사용", "함수 매개변수 활용 구조"),
+    "for_loop": ("for문", "반복문 중심 구조"),
+    "exception": ("예외 처리", "예외 처리 포함 구조"),
+    "type_annotation": ("타입 힌트 사용", "타입 명시 코드 구조"),
+    "pattern_matching": ("패턴 매칭", "패턴 매칭 구조"),
+    "index_iteration": ("인덱스 기반 반복 사용", "인덱싱 중심 구조"),
+    "list_append": ("리스트 누적 방식 사용", "리스트 메서드 호출"),
+    "list_comprehension": ("리스트 컴프리헨션", "컴프리헨션 기반 간결 구조"),
+    "string_processing": ("문자열 처리 중심 구조", "문자열 메서드 호출"),
+    "search": ("검색/탐색 중심 구조", "제너레이터 표현식"),
+    "conditional": ("if문", "조건문 중심 구조"),
+    "resource": ("파일/자원 관리 구조", "with문"),
+    "aggregation": ("데이터 집계 구조", "sum 사용"),
+}
+
+# Legacy registry references these generic actions, but the existing plan
+# deliberately promotes two tags to stricter safe variants at selection time.
+_SAFE_ACTION_OVERRIDES = {
+    "리스트 누적 방식 사용": "create_safe_append_collection",
+    "리스트 컴프리헨션": "create_safe_comprehension_collection",
+}
+
+
+def _build_policies() -> dict[str, dict]:
+    policies = {}
+    for family, tags in SHARED_TAG_FAMILIES.items():
+        for index, tag in enumerate(tags):
+            if tag not in CREATE_ACTION_BY_TAG:
+                raise RuntimeError(f"Unknown Batch28 policy tag: {tag}")
+            is_syntax = tag in SYNTAX_TAG_RULES
+            is_concept = tag in CONCEPT_TAG_RULES
+            if is_syntax == is_concept:
+                raise RuntimeError(f"Ambiguous tag role: {tag}")
+            action = CREATE_ACTION_BY_TAG[tag]
+            allowed = {action}
+            if tag in _SAFE_ACTION_OVERRIDES:
+                allowed.add(_SAFE_ACTION_OVERRIDES[tag])
+            policies[tag] = {
+                "policy_action": f"tag_policy_{family}_{index + 1}",
+                "family": family,
+                "role": "syntax_limit" if is_syntax else "concept_structure",
+                "tag": tag,
+                "mapped_action": action,
+                "allowed_actions": frozenset(allowed),
+                # The family is the unit of duplicate execution prevention.
+                # A safe per-pattern variant is preferred over a broad legacy
+                # action; otherwise concept structure precedes syntax limits.
+                "index": index,
+            }
+    if len(policies) != 32:
+        raise RuntimeError("Batch28 must have exactly 32 unique tag policies")
+    identities = {item["policy_action"] for item in policies.values()}
+    if len(identities) != 32:
+        raise RuntimeError("Batch28 duplicate policy identities")
+    return policies
+
+
+TAG_ACTION_POLICIES: dict[str, dict] = _build_policies()
+
+
+def get_tag_action_policy(tag: str, action: str | None = None) -> dict | None:
+    """Return independent policy metadata for the tag and supported action.
+
+    A different action (e.g., a reverse transform) cannot be silently merged
+    with a forward transform just because it has the same tag label.
+    """
+    policy = TAG_ACTION_POLICIES.get(tag)
+    if policy is None or (action is not None and action not in policy["allowed_actions"]):
+        return None
+    return dict(policy)
+
+
+def _preference(index: int, item: dict, policy: dict) -> tuple[int, int, int]:
+    action = item["action"]
+    safe_variant = action in _SAFE_ACTION_OVERRIDES.values()
+    return (
+        0 if safe_variant else 1,
+        0 if policy["role"] == "concept_structure" else 1,
+        index,
+    )
+
+
+def finalize_tag_action_policies(actions: list[dict]) -> list[dict]:
+    """Select at most one compatible action from each shared family.
+
+    Preserve other actions and their order. When a family has two candidate
+    tags, keep the safer and more structurally specific candidate but place it
+    at the earliest position to minimize interactions with unrelated actions.
+    Add traceable policy metadata WITHOUT rewriting the public action string.
+    """
+    if not isinstance(actions, list):
+        return actions
+
+    groups: dict[str, list[tuple[int, dict, dict]]] = {}
+    for idx, item in enumerate(actions):
+        if not isinstance(item, dict):
+            continue
+        tag, action = item.get("tag"), item.get("action")
+        if not isinstance(tag, str) or not isinstance(action, str):
+            continue
+        policy = get_tag_action_policy(tag, action)
+        if policy is not None:
+            groups.setdefault(policy["family"], []).append((idx, item, policy))
+
+    replacements: dict[int, dict] = {}
+    skipped: set[int] = set()
+    for family, rows in groups.items():
+        first_index = min(row[0] for row in rows)
+        selected_index, selected, policy = min(
+            rows, key=lambda row: _preference(row[0], row[1], row[2])
+        )
+        # Never change other fields the caller relies on (tag, action, reason).
+        enriched = dict(selected)
+        enriched["policy_action"] = policy["policy_action"]
+        enriched["policy_family"] = family
+        enriched["policy_role"] = policy["role"]
+        # Preserve provenance when a plan is finalized more than once.
+        source_tags = []
+        allowed_tags = set(SHARED_TAG_FAMILIES[family])
+        for _, candidate, _ in rows:
+            earlier = candidate.get("policy_source_tags")
+            names = earlier if isinstance(earlier, list) else [candidate["tag"]]
+            for name in names:
+                if name in allowed_tags and name not in source_tags:
+                    source_tags.append(name)
+        enriched["policy_source_tags"] = source_tags
+        replacements[first_index] = enriched
+        skipped.update(row[0] for row in rows if row[0] != first_index)
+        # selected_index may differ from first_index; its original slot is
+        # removed as part of 'skipped' above.
+
+    return [
+        replacements[idx] if idx in replacements else item
+        for idx, item in enumerate(actions)
+        if idx not in skipped
+    ]

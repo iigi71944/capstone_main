@@ -1,0 +1,199 @@
+"""Batch28 regression: distinct tag policies without UI/storage changes.
+
+Each pair has an independent policy identity. The underlying proven
+transformation code may remain shared by design until pattern-aware Batch29.
+"""
+from __future__ import annotations
+import unittest
+
+from app.services.style_tag_action_policy_service import (
+    SHARED_TAG_FAMILIES, TAG_ACTION_POLICIES,
+    get_tag_action_policy, finalize_tag_action_policies,
+)
+from app.services.style_tag_transform_map_service import (
+    CREATE_ACTION_BY_TAG, COMPARE_ONLY_TAGS,
+)
+from app.services.style_transform_plan_service import build_transform_plan
+from app.services.style_apply_service import _get_transform_function
+
+
+def _item(tag: str, action: str | None = None) -> dict:
+    return {
+        "tag": tag,
+        "action": action or CREATE_ACTION_BY_TAG[tag],
+        "reason": "test intent",
+    }
+
+
+class PolicyRegistryTests(unittest.TestCase):
+    def test_all_16_pairs_registered(self):
+        self.assertEqual(len(SHARED_TAG_FAMILIES), 16)
+        self.assertTrue(all(len(tags) == 2 for tags in SHARED_TAG_FAMILIES.values()))
+
+    def test_32_distinct_policy_identities(self):
+        self.assertEqual(len(TAG_ACTION_POLICIES), 32)
+        self.assertEqual(len({p['policy_action'] for p in TAG_ACTION_POLICIES.values()}), 32)
+
+    def test_no_duplicate_tags_between_families(self):
+        tags = [tag for tags in SHARED_TAG_FAMILIES.values() for tag in tags]
+        self.assertEqual(len(tags), len(set(tags)))
+
+    def test_keep_public_95_linked_tags_7_compare_only(self):
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 95)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 7)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
+
+    def test_every_tag_action_is_dispatchable(self):
+        for tag, metadata in TAG_ACTION_POLICIES.items():
+            with self.subTest(tag=tag):
+                action = CREATE_ACTION_BY_TAG[tag]
+                self.assertEqual(metadata['mapped_action'], action)
+                self.assertTrue(callable(_get_transform_function(action)))
+
+    def test_syntax_and_concept_roles(self):
+        self.assertEqual(get_tag_action_policy('리스트 메서드 호출')['role'], 'syntax_limit')
+        self.assertEqual(get_tag_action_policy('리스트 누적 방식 사용')['role'], 'concept_structure')
+        self.assertEqual(get_tag_action_policy('인덱스 기반 반복 사용')['role'], 'concept_structure')
+
+    def test_unknown_tag_has_no_policy(self):
+        self.assertIsNone(get_tag_action_policy('없는태그'))
+        self.assertIsNone(get_tag_action_policy('기본 매개변수'))
+
+    def test_wrong_action_is_not_silently_registered(self):
+        self.assertIsNone(get_tag_action_policy('if문', 'create_conditional_expression'))
+        self.assertIsNone(get_tag_action_policy('리스트 누적 방식 사용', 'create_if_statement'))
+
+    def test_list_overrides_explicitly_allowed(self):
+        self.assertIsNotNone(get_tag_action_policy('리스트 누적 방식 사용', 'create_safe_append_collection'))
+        self.assertIsNotNone(get_tag_action_policy('리스트 컴프리헨션', 'create_safe_comprehension_collection'))
+
+
+class PolicySelectionTests(unittest.TestCase):
+    def test_all_16_pairs_merge_only_once(self):
+        for family, pair in SHARED_TAG_FAMILIES.items():
+            with self.subTest(family=family):
+                result = finalize_tag_action_policies([_item(pair[0]), _item(pair[1])])
+                self.assertEqual(len(result), 1)
+                self.assertEqual(result[0]['policy_family'], family)
+                self.assertEqual(set(result[0]['policy_source_tags']), set(pair))
+                self.assertIn(result[0]['policy_action'],
+                              {TAG_ACTION_POLICIES[tag]['policy_action'] for tag in pair})
+
+    def test_concept_structure_wins_when_both_same_action(self):
+        result = finalize_tag_action_policies([
+            _item('if문'), _item('조건문 중심 구조')
+        ])
+        self.assertEqual(result[0]['tag'], '조건문 중심 구조')
+        self.assertEqual(result[0]['policy_role'], 'concept_structure')
+        self.assertEqual(result[0]['action'], 'create_if_statement')
+
+    def test_later_concept_replaces_first_slot_without_reordering_other_actions(self):
+        result = finalize_tag_action_policies([
+            _item('if문'), {'tag': 'other', 'action': 'other_action', 'reason': 'stay'},
+            _item('조건문 중심 구조')
+        ])
+        self.assertEqual([x['tag'] for x in result], ['조건문 중심 구조', 'other'])
+
+    def test_sum_aliases_use_one_function(self):
+        result = finalize_tag_action_policies([
+            _item('sum 사용'), _item('데이터 집계 구조')
+        ])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['tag'], '데이터 집계 구조')
+        self.assertEqual(result[0]['action'], 'create_aggregation_style')
+
+    def test_safe_append_variant_wins_over_legacy(self):
+        result = finalize_tag_action_policies([
+            _item('리스트 메서드 호출'),
+            _item('리스트 누적 방식 사용', 'create_safe_append_collection'),
+        ])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['action'], 'create_safe_append_collection')
+
+    def test_safe_comprehension_variant_wins_over_legacy(self):
+        result = finalize_tag_action_policies([
+            _item('컴프리헨션 기반 간결 구조'),
+            _item('리스트 컴프리헨션', 'create_safe_comprehension_collection'),
+        ])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['action'], 'create_safe_comprehension_collection')
+
+    def test_reverse_actions_never_swallowed(self):
+        result = finalize_tag_action_policies([
+            _item('if문', 'create_conditional_expression'),
+            _item('조건문 중심 구조'),
+        ])
+        self.assertEqual(len(result), 2)
+        self.assertNotIn('policy_action', result[0])
+        self.assertIn('policy_action', result[1])
+
+    def test_unrelated_actions_are_preserved(self):
+        unrelated = {'tag': 'raise문', 'action': 'create_safe_debug_raise', 'reason': 'x'}
+        result = finalize_tag_action_policies([unrelated, _item('sorted 사용')])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], unrelated)
+        self.assertEqual(result[1]['policy_family'], 'sorting')
+
+    def test_no_mutation_of_input_objects(self):
+        source = [_item('if문'), _item('조건문 중심 구조')]
+        backup = [dict(item) for item in source]
+        finalize_tag_action_policies(source)
+        self.assertEqual(source, backup)
+
+    def test_idempotence(self):
+        before = [_item('if문'), _item('조건문 중심 구조'), _item('sum 사용')]
+        once = finalize_tag_action_policies(before)
+        twice = finalize_tag_action_policies(once)
+        self.assertEqual(twice, once)
+
+    def test_empty_and_no_tag_action(self):
+        self.assertEqual(finalize_tag_action_policies([]), [])
+        x = {'tag': None, 'action': None}
+        self.assertEqual(finalize_tag_action_policies([x]), [x])
+
+    def test_multiple_families_do_not_conflict(self):
+        tags = ['if문', '조건문 중심 구조', 'sum 사용', '데이터 집계 구조',
+                'with문', '파일/자원 관리 구조']
+        result = finalize_tag_action_policies([_item(tag) for tag in tags])
+        self.assertEqual(len(result), 3)
+        self.assertEqual(len({item['policy_family'] for item in result}), 3)
+
+
+class PlanIntegrationTests(unittest.TestCase):
+    @staticmethod
+    def _diff(*tags):
+        # Empty metrics: only old missing-tag actions may be selected. The new
+        # policy layer must not invent a transformation from no evidence.
+        return {
+            'style_syntax_names': set(),
+            'style_concept_names': set(),
+            'target_syntax_names': set(),
+            'target_concept_names': set(),
+            'missing_syntax_tags': [{'tag': tag} for tag in tags],
+            'missing_concept_tags': [],
+            'style_metrics': {},
+            'target_analysis': {'metrics': {}},
+        }
+
+    def test_planner_applies_tag_policy(self):
+        result = build_transform_plan(self._diff('예외 처리', '예외 처리 포함 구조'))
+        matches = [item for item in result['actions']
+                   if item['action'] == 'create_safe_explicit_exception']
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]['policy_family'], 'exception')
+        self.assertEqual(len(matches[0]['policy_source_tags']), 2)
+
+    def test_planner_sum_alias_dedup(self):
+        result = build_transform_plan(self._diff('sum 사용', '데이터 집계 구조'))
+        matches = [item for item in result['actions']
+                   if item['action'] in {'create_aggregation_style', 'create_sum_aggregation'}]
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]['policy_family'], 'aggregation')
+
+    def test_no_extra_tag_created_by_policy(self):
+        result = build_transform_plan(self._diff())
+        self.assertFalse(any('policy_action' in x for x in result['actions']))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,6 +1,8 @@
 """Build style-directed transformation plans without conflicting actions."""
 
 from app.services.style_tag_transform_map_service import get_create_action_for_tag
+from app.services.style_tag_action_policy_service import finalize_tag_action_policies
+# CAPSTONE_BATCH28_PLAN_IMPORT_V1
 
 FILTER_CONCEPT_TAG = "데이터 필터링 구조"
 LIST_COMPREHENSION_TAG = "리스트 컴프리헨션"
@@ -159,6 +161,27 @@ def _metric_count(metrics: dict, key: str) -> int:
     if type(value) is not int:
         return 0
     return max(value, 0)
+
+# CAPSTONE_BATCH30_DEFAULT_ARG_GATE_FIX_V1
+def _generic_preference_metric_count(metrics: dict, key: str) -> int:
+    """Count independent style evidence, excluding tracked default-arg syntax.
+
+    - sorted(..., reverse=False): also emits a keyword argument and False literal
+    - str.strip(None): also emits a positional argument and None literal
+    In Batch29 each has its own measured preference/transform. Without
+    subtraction, the same preference spuriously triggers generic transformers.
+    For old saved styles (no fine counters), the original counts are unchanged.
+    """
+    captured = _metric_count(metrics, key)
+    excluded = {
+        "keyword_arg_count": "sorted_reverse_false_explicit_count",
+        "boolean_literal_count": "sorted_reverse_false_explicit_count",
+        "positional_arg_count": "strip_none_explicit_count",
+        "none_count": "strip_none_explicit_count",
+    }.get(key)
+    if excluded is None:
+        return captured
+    return max(0, captured - _metric_count(metrics, excluded))
 
 
 def _prefer_filtered_comprehension(diff: dict) -> bool:
@@ -345,6 +368,9 @@ _NEW_FAMILY_PAIRS = {
     "annotation": {"create_safe_local_annotation", "create_safe_local_deannotation"},
     # CAPSTONE_BATCH22_ASSERT_RAISE_CONFLICT_V1
     "assert_raise": {"create_safe_debug_assert", "create_safe_debug_raise"},
+    # CAPSTONE_BATCH29_SAFE_DIRECTIONS_V1
+    "sorted_default": {"create_safe_explicit_sorted_reverse", "create_safe_implicit_sorted_reverse"},
+    "strip_default": {"create_safe_explicit_strip_default", "create_safe_implicit_strip_default"},
 }
 
 
@@ -476,16 +502,16 @@ def build_transform_plan(diff: dict) -> dict:
             "action": "create_safe_direct_attribute",
             "reason": "저장된 스타일의 직접 속성 접근 선호도를 확인하여 안전한 getattr 표현만 변경합니다.",
         })
-    if (_metric_count(saved_metrics_b5, "keyword_arg_count") > 0
-            and _metric_count(target_metrics_b5, "keyword_arg_count") == 0):
+    if (_generic_preference_metric_count(saved_metrics_b5, "keyword_arg_count") > 0
+            and _generic_preference_metric_count(target_metrics_b5, "keyword_arg_count") == 0):
         actions.append({
             "tag": "키워드 인자 사용",
             "action": "create_safe_keyword_call",
             "reason": "저장된 스타일의 키워드 인자 선호도를 확인하여 정적인 함수 호출만 변경합니다.",
         })
-    elif (_metric_count(saved_metrics_b5, "keyword_arg_count") == 0
-            and _metric_count(saved_metrics_b5, "positional_arg_count") > 0
-            and _metric_count(target_metrics_b5, "keyword_arg_count") > 0):
+    elif (_generic_preference_metric_count(saved_metrics_b5, "keyword_arg_count") == 0
+            and _generic_preference_metric_count(saved_metrics_b5, "positional_arg_count") > 0
+            and _generic_preference_metric_count(target_metrics_b5, "keyword_arg_count") > 0):
         actions.append({
             "tag": "위치 인자 사용",
             "action": "create_safe_positional_call",
@@ -585,8 +611,8 @@ def build_transform_plan(diff: dict) -> dict:
         ("숫자 리터럴", "number_literal_count", "create_safe_number_literal"),
         ("불리언 리터럴", "boolean_literal_count", "create_safe_boolean_literal"),
     ):
-        if (_metric_count(saved_b13, metric_b13) > 0
-                and _metric_count(target_b13, metric_b13) == 0
+        if (_generic_preference_metric_count(saved_b13, metric_b13) > 0
+                and _generic_preference_metric_count(target_b13, metric_b13) == 0
                 and _metric_count(target_b13, "call_count") > 0
                 and not any(item.get("action") == action_b13 for item in actions)):
             actions.append({
@@ -624,8 +650,8 @@ def build_transform_plan(diff: dict) -> dict:
         ("print 사용", "print_call_count", ("import_count", "attribute_count", "call_count"),
          "create_safe_builtin_print"),
     ):
-        if (_metric_count(saved_b20, saved_metric) > 0
-                and _metric_count(target_b20, saved_metric) == 0
+        if (_generic_preference_metric_count(saved_b20, saved_metric) > 0
+                and _generic_preference_metric_count(target_b20, saved_metric) == 0
                 and all(_metric_count(target_b20, metric) > 0 for metric in target_evidence)
                 and not any(item.get("action") == action_b20 for item in actions)):
             actions.append({
@@ -797,6 +823,100 @@ def build_transform_plan(diff: dict) -> dict:
             "reason": "저장 스타일이 절차형이고 단독 스크립트의 미사용 private 출력 함수만 안전하게 펼칩니다.",
         })
 
+    # CAPSTONE_BATCH29_FINE_PLAN_V1: only explicit style-metric evidence;
+    # no unobserved tag or legacy style can activate these variants.
+    saved_b29 = _get_style_metrics(diff)
+    target_b29 = _get_target_metrics(diff)
+    for tag_b29, saved_key, opposite_key, target_key, action_b29, family_key in (
+        ("sorted 사용", "sorted_reverse_false_explicit_count",
+         "sorted_reverse_false_implicit_count", "sorted_reverse_false_implicit_count",
+         "create_safe_explicit_sorted_reverse", "sorted_call_count"),
+        ("sorted 사용", "sorted_reverse_false_implicit_count",
+         "sorted_reverse_false_explicit_count", "sorted_reverse_false_explicit_count",
+         "create_safe_implicit_sorted_reverse", "sorted_call_count"),
+        ("문자열 메서드 호출", "strip_none_explicit_count",
+         "strip_none_implicit_count", "strip_none_implicit_count",
+         "create_safe_explicit_strip_default", "string_strip_call_count"),
+        ("문자열 메서드 호출", "strip_none_implicit_count",
+         "strip_none_explicit_count", "strip_none_explicit_count",
+         "create_safe_implicit_strip_default", "string_strip_call_count"),
+    ):
+        if (_metric_count(saved_b29, saved_key) > 0
+                and _metric_count(saved_b29, opposite_key) == 0
+                and _metric_count(target_b29, target_key) > 0
+                and _metric_count(target_b29, saved_key) == 0
+                and _metric_count(saved_b29, family_key) > 0
+                and _metric_count(target_b29, family_key) > 0
+                and not any(item.get("action") == action_b29 for item in actions)):
+            actions.append({
+                "tag": tag_b29,
+                "action": action_b29,
+                "reason": "저장 스타일의 세부 메트릭으로 확인된 기본 인자 표현만 안전하게 조정합니다.",
+            })
+
+    # CAPSTONE_BATCH31_METRIC_GATES_V1: each newly linked tag must have
+    # observed saved-style metrics and a conservatively matching target shape.
+    # The transformer itself verifies every AST node before any source edit.
+    saved_b31 = _get_style_metrics(diff)
+    target_b31 = _get_target_metrics(diff)
+    concepts_b31 = _get_tag_names(diff, "style_concept_names")
+
+    for tag_b31, saved_metric, target_metric, action_b31 in (
+        ("기본 매개변수", "default_param_count", "default_param_count", "create_safe_closed_default_parameter"),
+        ("가변 인자 사용", "vararg_count", "vararg_count", "create_safe_closed_varargs"),
+        ("키워드 가변 인자 사용", "kwarg_count", "kwarg_count", "create_safe_closed_kwargs"),
+    ):
+        if (_metric_count(saved_b31, saved_metric) > 0
+                and _metric_count(target_b31, target_metric) == 0
+                and _metric_count(target_b31, "function_count") == 1
+                and _metric_count(target_b31, "call_count") > 0):
+            actions.append({
+                "tag": tag_b31, "action": action_b31,
+                "reason": "저장 스타일의 매개변수 선호가 관측된 단독 내부 함수에만 안전한 시그니처 변환을 시도합니다.",
+            })
+
+    if (_metric_count(saved_b31, "async_function_count") > 0
+            and _metric_count(target_b31, "async_function_count") == 0
+            and _metric_count(target_b31, "function_count") == 1
+            and _metric_count(target_b31, "import_count") == 1
+            and _metric_count(target_b31, "call_count") >= 2):
+        actions.append({
+            "tag": "비동기 함수 정의", "action": "create_safe_closed_async_definition",
+            "reason": "고립된 리터럴 반환 내부 함수를 asyncio.run 호출과 함께 비동기로 구성합니다.",
+        })
+
+    prefer_async_structure_b31 = (
+        "비동기 처리 구조" in concepts_b31
+        and _metric_count(saved_b31, "async_function_count") >= 2
+        and _metric_count(saved_b31, "await_count") > 0
+        and _metric_count(target_b31, "async_function_count") == 1
+        and _metric_count(target_b31, "await_count") == 0
+        and _metric_count(target_b31, "import_count") == 1
+    )
+    if prefer_async_structure_b31:
+        actions.append({
+            "tag": "비동기 처리 구조", "action": "create_safe_closed_async_structure",
+            "reason": "독립 asyncio 스크립트에 작은 await 실행 함수를 도입합니다.",
+        })
+    elif (_metric_count(saved_b31, "await_count") > 0
+            and _metric_count(target_b31, "await_count") == 0
+            and _metric_count(target_b31, "async_function_count") == 1
+            and _metric_count(target_b31, "import_count") == 1):
+        actions.append({
+            "tag": "await 사용", "action": "create_safe_closed_await",
+            "reason": "고립된 상수 반환 코루틴에 결과 동일성이 검증된 await 표현을 적용합니다.",
+        })
+
+    if ("긴 함수 구조" in concepts_b31
+            and _metric_count(saved_b31, "max_function_body_length") >= 10
+            and _metric_count(target_b31, "max_function_body_length") < 10
+            and _metric_count(target_b31, "function_count") == 1
+            and _metric_count(target_b31, "loop_count") > 0):
+        actions.append({
+            "tag": "긴 함수 구조", "action": "create_safe_closed_long_function",
+            "reason": "출력만 수행하는 고정 리터럴 반복문을 여러 명시적 문장으로 펼칩니다.",
+        })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -804,6 +924,12 @@ def build_transform_plan(diff: dict) -> dict:
         action = get_create_action_for_tag(tag_name)
         if action is None:
             compare_only.append(tag_name)
+            continue
+        # CAPSTONE_BATCH31_METRIC_ONLY_V1: tag labels alone cannot rewrite APIs.
+        if tag_name in {
+            "기본 매개변수", "가변 인자 사용", "키워드 가변 인자 사용",
+            "비동기 함수 정의", "await 사용", "비동기 처리 구조", "긴 함수 구조",
+        }:
             continue
         # CAPSTONE_BATCH27_METRIC_ONLY_V1: missing tags alone cannot select these actions.
         if tag_name in {"open 사용", "파일 입출력 구조", "절차형 코드 스타일"}:
@@ -895,9 +1021,14 @@ def build_transform_plan(diff: dict) -> dict:
             ),
         })
 
+    # CAPSTONE_BATCH28_PLAN_FINALIZE_V1: tag-specific policy IDs and shared-engine
+    # deduplication only after legacy direction/conflict resolution completes.
+    # Public action strings and compare-only semantics are unchanged.
     return {
-        "actions": _resolve_new_family_actions(_resolve_iteration_actions(
-            _resolve_dictionary_actions(_resolve_collection_actions(actions))
-        )),
+        "actions": finalize_tag_action_policies(
+            _resolve_new_family_actions(_resolve_iteration_actions(
+                _resolve_dictionary_actions(_resolve_collection_actions(finalize_tag_action_policies(actions)))
+            ))
+        ),
         "compare_only": sorted(set(compare_only)),
     }

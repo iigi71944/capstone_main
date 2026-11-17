@@ -186,8 +186,10 @@ class Batch27Safety(unittest.TestCase):
         for tag, (action, transformer) in mapping.items():
             self.assertEqual(get_create_action_for_tag(tag), action)
             self.assertIs(_get_transform_function(action), transformer)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 95)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 7)
+        # Batch31 extends the earlier minimum without changing old mappings.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 95)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 7)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_plan_gates(self):
         saved = {'open_call_count': 1, 'function_count': 0, 'class_count': 0}

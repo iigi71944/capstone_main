@@ -7,6 +7,14 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_BATCH31_LINK_ALL_V1: only narrow closed-module safe styles.
+    "기본 매개변수": "create_safe_closed_default_parameter",
+    "가변 인자 사용": "create_safe_closed_varargs",
+    "키워드 가변 인자 사용": "create_safe_closed_kwargs",
+    "비동기 함수 정의": "create_safe_closed_async_definition",
+    "await 사용": "create_safe_closed_await",
+    "비동기 처리 구조": "create_safe_closed_async_structure",
+    "긴 함수 구조": "create_safe_closed_long_function",
     # CAPSTONE_BATCH27_REGISTRY_V1: guarded read-only file I/O and procedural style.
     "open 사용": "create_safe_module_io_open",
     "파일 입출력 구조": "create_safe_file_io_with",

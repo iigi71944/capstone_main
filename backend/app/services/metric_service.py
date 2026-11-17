@@ -10,6 +10,8 @@ import ast
 
 # 문법 태그 추출과 동일한 수신 객체 자료형 판별기를 사용합니다.
 # 메서드 이름이 겹치는 list.pop() / dict.pop() 등의 분류를 통일합니다.
+from app.services.style_fine_pattern_metric_service import calculate_fine_pattern_metrics
+# CAPSTONE_BATCH29_METRICS_IMPORT_V1
 from app.services.syntax_tag_service import (
     _ReceiverTypeVisitor,
     STRING_METHODS,
@@ -893,7 +895,9 @@ def calculate_metrics(tree: ast.AST) -> dict:
     selection_visitor = _SelectionPatternVisitor()
     selection_visitor.visit(tree)
 
+    # CAPSTONE_BATCH29_FINE_METRICS_V1: append detail keys, preserve all old keys.
     return {
+        **calculate_fine_pattern_metrics(tree, receiver_types),
         "function_count": function_count,
         "async_function_count": async_function_count,
         "class_count": class_count,

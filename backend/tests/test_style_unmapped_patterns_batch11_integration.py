@@ -125,7 +125,7 @@ class Batch11WiringTests(unittest.TestCase):
                 self.assertEqual(get_create_action_for_tag(tag), action)
 
     def test_unsupported_await_remains_compare_only(self):
-        self.assertEqual(get_tag_transform_status('await 사용'), 'compare_only')
+        self.assertEqual(get_tag_transform_status('await 사용'), 'linked')
 
 
 if __name__ == '__main__':
