@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import CodeEditor from "../editor/CodeEditor";
 import CodeViewer from "../editor/CodeViewer";
 import FunctionReturnResults from "./FunctionReturnResults";
+import { parseVerificationInputs } from "../../lib/verificationInputSelection";
 
 import type {
   AnalysisResponse,
@@ -260,92 +261,10 @@ export default function StyleApplySection({
     clearPreviousResult();
   };
 
-  const parseFunctionCases = ():
-    | FunctionTestCase[]
-    | null => {
-    const cases: FunctionTestCase[] = [];
-
-    for (
-      const [index, draft] of
-      functionDrafts.entries()
-    ) {
-      const functionName =
-        draft.functionName.trim();
-
-      if (!functionName) {
-        setFunctionInputError(
-          `${index + 1}번 테스트의 함수 이름을 입력해주세요.`
-        );
-
-        return null;
-      }
-
-      let argsValue: unknown;
-      let kwargsValue: unknown;
-
-      try {
-        argsValue = JSON.parse(
-          draft.argsText
-        );
-      } catch {
-        setFunctionInputError(
-          `${index + 1}번 테스트의 '순서대로 넣을 값'을 확인해주세요. [5] 또는 ["Jin"]처럼 작성해야 합니다.`
-        );
-
-        return null;
-      }
-
-      if (!Array.isArray(argsValue)) {
-        setFunctionInputError(
-          `${index + 1}번 테스트의 '순서대로 넣을 값'은 대괄호 [ ]로 작성해야 합니다.`
-        );
-
-        return null;
-      }
-
-      try {
-        kwargsValue = JSON.parse(
-          draft.kwargsText
-        );
-      } catch {
-        setFunctionInputError(
-          `${index + 1}번 테스트의 '이름을 지정해 넣을 값'을 확인해주세요. {"punctuation": "?"}처럼 작성하거나 사용하지 않으면 {}를 입력해주세요.`
-        );
-
-        return null;
-      }
-
-      if (
-        kwargsValue === null ||
-        typeof kwargsValue !== "object" ||
-        Array.isArray(kwargsValue)
-      ) {
-        setFunctionInputError(
-          `${index + 1}번 테스트의 '이름을 지정해 넣을 값'은 중괄호 { }로 작성해야 합니다.`
-        );
-
-        return null;
-      }
-
-      if (draft.stdinText.length > 8192) {
-        setFunctionInputError(`${index + 1}번 함수 입력은 8192자를 넘을 수 없습니다.`);
-        return null;
-      }
-      cases.push({
-        function: functionName,
-        ...(draft.stdinText ? { stdin: draft.stdinText } : {}),
-        args:
-          argsValue as FunctionTestCase["args"],
-        kwargs:
-          kwargsValue as FunctionTestCase["kwargs"],
-      });
-    }
-
-    setFunctionInputError("");
-
-    return cases;
-  };
-
+  // CAPSTONE_STDIN_ONLY_INDEPENDENT_FUNCTION_CASES_V1:
+  // An empty function name with stdin is a standalone stdin verification.
+  // No function_cases are sent in this mode; the existing top-level stdin
+  // reaches the execution verifier without changing backend contracts.
   const submitStyleApplication = () => {
     if (styleApplyLoading) {
       return;
@@ -357,14 +276,14 @@ export default function StyleApplySection({
       return;
     }
 
-    const cases = parseFunctionCases();
-
-    if (cases === null) {
+    const selected = parseVerificationInputs(functionDrafts);
+    if (!selected.ok) {
+      setFunctionInputError(selected.error);
       return;
     }
 
-    void handleApplyStyle(cases, false,
-      cases.find((test) => Boolean(test.stdin))?.stdin || undefined);
+    setFunctionInputError("");
+    void handleApplyStyle(selected.functionCases, false, selected.stdin);
   };
 
   const missingSyntaxNames = new Set(
@@ -605,13 +524,13 @@ export default function StyleApplySection({
                 </p>
 
                 <h3 className="mt-1 text-base font-semibold text-slate-900">
-                  함수 반환값 검증
+                  표준 입력 및 함수 반환값 검증
                 </h3>
 
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                  함수에 같은 값을 넣어 실행한 뒤,
-                  스타일 적용 전후의 결과가 같은지
-                  확인합니다.
+                  입력값만 작성하면 실행 출력을 비교하고,
+                  함수 이름까지 입력하면 반환값도
+                  함께 검증합니다.
                 </p>
               </div>
 
@@ -631,7 +550,7 @@ export default function StyleApplySection({
                 />
 
                 <span className="text-sm font-semibold text-slate-800">
-                  함수 검증 사용
+                  입력/함수 검증 사용
                 </span>
               </label>
             </div>
@@ -654,10 +573,10 @@ export default function StyleApplySection({
                   </p>
 
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    코드에 작성된 함수 이름과
-                    함수에 넣을 값을 입력해주세요.
-                    값을 넣는 방식은 두 가지이며,
-                    필요한 방식만 사용하시면 됩니다.
+                    표준 입력만 검증할 때는 함수 이름을 비워 두고
+                    사용자 입력값(stdin)만 입력하세요.
+                    함수 반환값 검증 시에는 함수 이름과
+                    함수에 넣을 값을 함께 입력해주세요.
                   </p>
 
                   <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600">
@@ -741,8 +660,8 @@ export default function StyleApplySection({
                           />
 
                           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                            코드에 정의된 함수 이름을
-                            그대로 입력해주세요.
+                            함수 반환값 검증 시에만 입력합니다.
+                            표준 입력만 검증할 때는 비워 두세요.
                           </p>
                         </div>
 
@@ -839,7 +758,7 @@ export default function StyleApplySection({
                         <div className="lg:col-span-2">
                           <label htmlFor={`function-stdin-${draft.id}`}
                             className="mb-2 block text-xs font-semibold text-slate-700">
-                            이 함수 테스트의 사용자 입력값 (stdin) <span className="font-normal text-slate-400">· 선택</span>
+                            사용자 입력값 (stdin) <span className="font-normal text-slate-400">· 선택</span>
                           </label>
                           <textarea id={`function-stdin-${draft.id}`} rows={2} maxLength={8192}
                             value={draft.stdinText} disabled={styleApplyLoading}
@@ -1134,7 +1053,12 @@ export default function StyleApplySection({
               <FunctionReturnResults verification={functionVerification} />
             )}
 
-            {!functionVerification && useFunctionTests && styleApplyResult && (
+            {/* CAPSTONE_STDIN_ONLY_HIDE_UNREQUESTED_FUNCTION_NOTICE_V1:
+                No function name means only top-level stdin was verified. */}
+            {!functionVerification &&
+              useFunctionTests &&
+              functionDrafts.some((draft) => draft.functionName.trim() !== "") &&
+              styleApplyResult && (
               <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-800">
                   함수 테스트 결과를 확인할 수 없습니다.
