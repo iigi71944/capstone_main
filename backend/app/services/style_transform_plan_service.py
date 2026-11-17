@@ -728,6 +728,75 @@ def build_transform_plan(diff: dict) -> dict:
             "reason": "저장된 import 사용 선호에 따라 단순 print 전용 코드에 builtins import를 명시합니다.",
         })
 
+    # CAPSTONE_BATCH26_METRIC_GATE_V1: concept tag AND recorded metrics required.
+    # Batch21/23 handle simpler patterns; these two actions extend coverage.
+    saved_b26 = _get_style_metrics(diff)
+    target_b26 = _get_target_metrics(diff)
+    concepts_b26 = _get_tag_names(diff, "style_concept_names")
+    if ("사용자 입력 처리 구조" in concepts_b26
+            and _metric_count(saved_b26, "input_call_count") > 0
+            and _metric_count(target_b26, "input_call_count") == 0
+            and all(_metric_count(target_b26, key) > 0
+                    for key in ("import_count", "attribute_count", "call_count"))
+            and not any(a.get("action") == "create_safe_nested_input_structure"
+                        for a in actions)):
+        actions.append({
+            "tag": "사용자 입력 처리 구조",
+            "action": "create_safe_nested_input_structure",
+            "reason": "저장 스타일에 입력 처리 개념이 있고, 중첩된 builtins.input 호출이 안전한 형태일 때만 정리합니다.",
+        })
+    if ("전역 상태 의존 구조" in concepts_b26
+            and _metric_count(saved_b26, "global_count") > 0
+            and _metric_count(target_b26, "global_count") == 0
+            and _metric_count(target_b26, "function_count") > 0
+            and _metric_count(target_b26, "assign_count") > 0
+            and not any(a.get("action") == "create_safe_global_calculation"
+                        for a in actions)):
+        actions.append({
+            "tag": "전역 상태 의존 구조",
+            "action": "create_safe_global_calculation",
+            "reason": "저장 스타일에 전역 상태 개념이 있고, 상수 전역값을 읽는 단순 계산 함수에만 명시적 global을 적용합니다.",
+        })
+
+    # CAPSTONE_BATCH27_METRIC_GATE_V1: both saved tag and prior metric evidence.
+    # Two different io.open syntaxes have distinct transformers; both are read-only.
+    saved_b27 = _get_style_metrics(diff)
+    target_b27 = _get_target_metrics(diff)
+    syntax_b27 = _get_tag_names(diff, "style_syntax_names")
+    concepts_b27 = _get_tag_names(diff, "style_concept_names")
+    if ("open 사용" in syntax_b27
+            and _metric_count(saved_b27, "open_call_count") > 0
+            and _metric_count(target_b27, "open_call_count") == 0
+            and all(_metric_count(target_b27, key) > 0
+                    for key in ("import_count", "attribute_count", "call_count"))):
+        actions.append({
+            "tag": "open 사용",
+            "action": "create_safe_module_io_open",
+            "reason": "저장 스타일의 open 호출 선호와 단순 io.open 대입문을 확인한 뒤 읽기 전용 파일 접근 형태만 변환합니다.",
+        })
+    if ("파일 입출력 구조" in concepts_b27
+            and _metric_count(saved_b27, "open_call_count") > 0
+            and _metric_count(target_b27, "open_call_count") == 0
+            and all(_metric_count(target_b27, key) > 0
+                    for key in ("import_count", "attribute_count", "call_count"))):
+        actions.append({
+            "tag": "파일 입출력 구조",
+            "action": "create_safe_file_io_with",
+            "reason": "파일 입출력 개념 태그가 저장된 경우 단일 io.open 컨텍스트 매니저의 읽기 전용 호출만 변경합니다.",
+        })
+    if ("절차형 코드 스타일" in concepts_b27
+            and "function_count" in saved_b27
+            and _metric_count(saved_b27, "function_count") == 0
+            and _metric_count(saved_b27, "class_count") == 0
+            and _metric_count(target_b27, "function_count") > 0
+            and _metric_count(target_b27, "call_count") > 0
+            and _metric_count(target_b27, "class_count") == 0):
+        actions.append({
+            "tag": "절차형 코드 스타일",
+            "action": "create_safe_literal_procedural",
+            "reason": "저장 스타일이 절차형이고 단독 스크립트의 미사용 private 출력 함수만 안전하게 펼칩니다.",
+        })
+
     for tag_item in [*missing_syntax_tags, *missing_concept_tags]:
         tag_name = _get_tag_name(tag_item)
         if not tag_name:
@@ -735,6 +804,12 @@ def build_transform_plan(diff: dict) -> dict:
         action = get_create_action_for_tag(tag_name)
         if action is None:
             compare_only.append(tag_name)
+            continue
+        # CAPSTONE_BATCH27_METRIC_ONLY_V1: missing tags alone cannot select these actions.
+        if tag_name in {"open 사용", "파일 입출력 구조", "절차형 코드 스타일"}:
+            continue
+        # CAPSTONE_BATCH26_METRIC_ONLY_V1: never transform from tag name alone.
+        if tag_name in {"사용자 입력 처리 구조", "전역 상태 의존 구조"}:
             continue
         # CAPSTONE_BATCH24_METRIC_ONLY_V1: the metrics above are mandatory.
         if tag_name in {"import문", "입출력 중심 코드"}:

@@ -679,7 +679,8 @@ export default function StyleApplySection({
                       <span className="font-semibold text-slate-800">
                         순서대로 넣을 값:
                       </span>{" "}
-                      함수에 값을 차례대로 전달합니다.
+                      함수의 위치 인자를 왼쪽부터 순서대로 전달합니다.
+                      리스트 한 개를 전달할 때는 [[1, 2, 3]]처럼 작성합니다.
                     </p>
 
                     <p>
@@ -724,7 +725,7 @@ export default function StyleApplySection({
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        {/* 함수 이름 */}
+                        {/* 함수 이름 · CAPSTONE_BATCH25_CLEAR_NAME_PLACEHOLDER_V1 */}
 
                         <div>
                           <label
@@ -750,7 +751,6 @@ export default function StyleApplySection({
                             disabled={
                               styleApplyLoading
                             }
-                            placeholder="greet"
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
                           />
 
@@ -795,8 +795,9 @@ export default function StyleApplySection({
                             [&quot;Jin&quot;]
                             {" "}
                             / 여러 값은 [5, 10]처럼
-                            입력합니다. 사용하지 않으면
-                            []로 두세요.
+                            입력합니다. 타입 힌트나 기본값이 있는
+                            매개변수는 해당 자료형과 일치해야 합니다.
+                            사용하지 않으면 []로 두세요.
                           </p>
                         </div>
 
@@ -848,7 +849,7 @@ export default function StyleApplySection({
 
                         </div>
 
-                        {/* 사용자 입력값: 이 함수 테스트에만 적용하는 override */}
+                        {/* 사용자 입력값: 이 함수 테스트에만 적용 · CAPSTONE_BATCH25_CLEAR_STDIN_PLACEHOLDER_V1 */}
                         <div className="lg:col-span-2">
                           <label htmlFor={`function-stdin-${draft.id}`}
                             className="mb-2 block text-xs font-semibold text-slate-700">
@@ -857,11 +858,14 @@ export default function StyleApplySection({
                           <textarea id={`function-stdin-${draft.id}`} rows={2} maxLength={8192}
                             value={draft.stdinText} disabled={styleApplyLoading}
                             onChange={(event) => updateFunctionDraft(draft.id, "stdinText", event.target.value)}
-                            placeholder={"5\n10"}
                             className="w-full resize-y rounded-lg border border-slate-300 bg-white p-3 font-mono text-sm text-slate-900"
                           />
                           <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                            입력 예: 5 (한 번), 5와 10 (두 줄). 대괄호 없이 각 줄에 입력합니다.
+                            {/* CAPSTONE_BATCH25_TYPE_NOTICE_V1 */}
+                            각 입력값은 코드에서 요구하는 자료형에 맞아야 합니다.
+                            input()은 문자열을 반환하며, int(input())는 정수로,
+                            float(input())는 실수로 변환 가능한 값을 입력해야 합니다.
+                            대괄호 없이 입력 순서대로 한 줄에 한 값씩 작성해주세요.
                             여러 테스트 중 첫 번째로 작성한 stdin을 기본 실행 비교에도 사용합니다.
                             함수별 입력은 해당 함수 테스트에서 각각 사용됩니다.
                           </p>

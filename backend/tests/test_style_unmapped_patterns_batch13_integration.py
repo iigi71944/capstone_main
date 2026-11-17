@@ -100,7 +100,9 @@ class Batch13IntegrationTests(unittest.TestCase):
         # CAPSTONE_BATCH23_LEGACY_TEST_FIX_V1
         self.assertEqual(mapping.get_tag_transform_status('전역 변수 사용'), 'linked')
         self.assertEqual(mapping.get_create_action_for_tag('전역 변수 사용'), 'create_safe_readonly_global')
-        for tag in ('await 사용', '파일 입출력 구조'):
+        # CAPSTONE_BATCH27_LEGACY_FILE_IO_V1: only await remains compare-only.
+        self.assertEqual(mapping.get_tag_transform_status('파일 입출력 구조'), 'linked')
+        for tag in ('await 사용',):
             self.assertEqual(mapping.get_tag_transform_status(tag), 'compare_only')
 
 

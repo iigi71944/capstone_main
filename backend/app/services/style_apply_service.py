@@ -232,9 +232,29 @@ from app.services.improvement.safe_batch24_service import (
     transform_simple_literal_print_arguments,
 )
 
+# CAPSTONE_BATCH26_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch26_service import (
+    transform_nested_builtin_input_structure,
+    transform_readonly_global_calculation,
+)
+
+# CAPSTONE_BATCH27_DISPATCH_IMPORT_V1
+from app.services.improvement.safe_batch27_service import (
+    transform_safe_module_io_open,
+    transform_safe_file_io_with,
+    transform_literal_private_main_to_procedure,
+)
+
 def _get_transform_function(action: str):
     """Keep the existing action map; extend it with a while-only transformer."""
     action_map = {
+        # CAPSTONE_BATCH27_DISPATCH_MAP_V1
+        "create_safe_module_io_open": transform_safe_module_io_open,
+        "create_safe_file_io_with": transform_safe_file_io_with,
+        "create_safe_literal_procedural": transform_literal_private_main_to_procedure,
+        # CAPSTONE_BATCH26_DISPATCH_MAP_V1
+        "create_safe_nested_input_structure": transform_nested_builtin_input_structure,
+        "create_safe_global_calculation": transform_readonly_global_calculation,
         # CAPSTONE_BATCH24_DISPATCH_MAP_V1
         "create_safe_explicit_builtins_import": transform_simple_print_to_explicit_builtins_import,
         "create_safe_literal_print_merge": transform_simple_literal_print_arguments,

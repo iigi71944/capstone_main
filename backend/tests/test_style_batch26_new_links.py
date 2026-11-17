@@ -1,0 +1,243 @@
+"""Batch 26: three positive shapes per concept, negative gates, integration."""
+from __future__ import annotations
+
+import ast
+import subprocess
+import sys
+import unittest
+
+from app.services.improvement.safe_batch26_service import (
+    transform_nested_builtin_input_structure as input_transform,
+    transform_readonly_global_calculation as global_transform,
+)
+from app.services.style_apply_service import _get_transform_function
+from app.services.style_tag_transform_map_service import (
+    CREATE_ACTION_BY_TAG, COMPARE_ONLY_TAGS, get_create_action_for_tag,
+)
+from app.services.style_transform_plan_service import build_transform_plan
+
+
+def plan(saved=None, target=None, saved_concepts=None, missing=None):
+    return build_transform_plan({
+        'missing_syntax_tags': [],
+        'missing_concept_tags': missing or [],
+        'style_syntax_names': set(),
+        'style_concept_names': set(saved_concepts or []),
+        'target_syntax_names': set(),
+        'target_concept_names': set(),
+        'style_metrics': saved or {},
+        'target_analysis': {'metrics': target or {}},
+    })
+
+
+class InputStructureTriplets(unittest.TestCase):
+    def test_basic(self):
+        source = 'import builtins\nvalue = int(builtins.input("Number: "))\n'
+        result = input_transform(source)
+        self.assertEqual(result, 'import builtins\nvalue = int(input("Number: "))\n')
+
+    def test_additional(self):
+        source = 'import builtins\nprint(builtins.input("Name: "))\n'
+        self.assertEqual(input_transform(source), 'import builtins\nprint(input("Name: "))\n')
+
+    def test_complex(self):
+        source = 'import builtins\nvalue = builtins.input("Name: ").strip()\n'
+        self.assertEqual(input_transform(source), 'import builtins\nvalue = input("Name: ").strip()\n')
+
+
+class GlobalStateTriplets(unittest.TestCase):
+    def test_basic(self):
+        source = 'BASE = 5\ndef calc():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(source), 'BASE = 5\ndef calc():\n    global BASE\n    return BASE + 1\n')
+
+    def test_additional(self):
+        source = 'LIMIT = 10\ndef subtract():\n    return LIMIT - 2\n'
+        self.assertEqual(global_transform(source), 'LIMIT = 10\ndef subtract():\n    global LIMIT\n    return LIMIT - 2\n')
+
+    def test_complex(self):
+        source = 'FACTOR = 3\ndef multiply():\n    return FACTOR * 4\n'
+        self.assertEqual(global_transform(source), 'FACTOR = 3\ndef multiply():\n    global FACTOR\n    return FACTOR * 4\n')
+
+
+class Batch26Safety(unittest.TestCase):
+    def test_direct_input_is_existing_batch21_not_26(self):
+        x = 'import builtins\nvalue = builtins.input()\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_without_import_unchanged(self):
+        x = 'v = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_import_after_call_unchanged(self):
+        x = 'v = int(builtins.input())\nimport builtins\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_shadow_unchanged(self):
+        x = 'import builtins\ninput = lambda p: "x"\nv = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_builtins_shadow_unchanged(self):
+        x = 'import builtins\nbuiltins = object()\nv = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_dynamic_lookup_rejected(self):
+        x = 'import builtins\nexec("pass")\nv = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_module_attribute_assignment_rejected(self):
+        x = 'import builtins\nbuiltins.input = lambda: "3"\nv = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_in_function_not_converted(self):
+        x = 'import builtins\ndef f():\n    return int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_comprehension_not_converted(self):
+        x = 'import builtins\nv = [int(builtins.input()) for _ in range(2)]\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_duplicate_import_rejected(self):
+        x = 'import builtins\nimport builtins\nv = int(builtins.input())\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_input_crlf_and_unicode_preserved(self):
+        x = 'import builtins\r\nv = int(builtins.input("숫자: "))\r\n'
+        self.assertEqual(input_transform(x), 'import builtins\r\nv = int(input("숫자: "))\r\n')
+
+    def test_input_multiple_eligible_calls(self):
+        x = 'import builtins\na = int(builtins.input())\nb = float(builtins.input())\n'
+        y = input_transform(x)
+        self.assertEqual(y.count('builtins.input'), 0)
+        self.assertEqual(y.count('input()'), 2)
+
+    def test_input_invalid_python(self):
+        x = 'import builtins\nv = int(builtins.input(\n'
+        self.assertEqual(input_transform(x), x)
+
+    def test_global_no_literal_binding(self):
+        x = 'BASE = int(3)\ndef f():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_mutable_binding(self):
+        x = 'BASE = [3]\ndef f():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_function_argument_excluded(self):
+        x = 'BASE = 5\ndef f(BASE):\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_decorated_excluded(self):
+        x = 'BASE = 5\n@staticmethod\ndef f():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_extra_body_excluded(self):
+        x = 'BASE = 5\ndef f():\n    print("a")\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_name_rebinding_excluded(self):
+        x = 'BASE = 5\nBASE = 9\ndef f():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_later_binding_excluded(self):
+        x = 'def f():\n    return BASE + 1\nBASE = 5\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_non_numeric_op_excluded(self):
+        x = 'BASE = 5\ndef f():\n    return BASE / 2\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_unsafe_module_side_effect(self):
+        x = 'BASE = 5\nmutate()\ndef f():\n    return BASE + 1\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_inline_comment_excluded(self):
+        x = 'BASE = 5\ndef f():\n    return BASE + 1 # important\n'
+        self.assertEqual(global_transform(x), x)
+
+    def test_global_crlf_preserved(self):
+        x = 'BASE = 5\r\ndef f():\r\n    return BASE + 1\r\n'
+        y = global_transform(x)
+        self.assertEqual(y, 'BASE = 5\r\ndef f():\r\n    global BASE\r\n    return BASE + 1\r\n')
+
+    def test_global_independent_functions(self):
+        x = 'BASE = 5\ndef a():\n    return BASE + 1\ndef b():\n    return BASE * 2\n'
+        y = global_transform(x)
+        self.assertEqual(y.count('    global BASE'), 2)
+        ast.parse(y)
+
+    def test_both_transformers_preserve_execution(self):
+        inp = 'import builtins\nv = int(builtins.input())\nprint(v + 1)\n'
+        self.assertEqual(self._run(inp, '5\n'), self._run(input_transform(inp), '5\n'))
+        src = 'BASE = 5\ndef f():\n    return BASE * 3\n'
+        for code in (src, global_transform(src)):
+            ast.parse(code)
+        self.assertEqual(self._run(src + 'print(f())\n'),
+                         self._run(global_transform(src) + 'print(f())\n'))
+
+    def _run(self, source, stdin=''):
+        p = subprocess.run([sys.executable, '-I', '-c', source],
+                           input=stdin, capture_output=True, text=True, timeout=3)
+        return p.returncode, p.stdout, p.stderr
+
+    def test_registry_and_dispatch(self):
+        self.assertEqual(get_create_action_for_tag('사용자 입력 처리 구조'), 'create_safe_nested_input_structure')
+        self.assertEqual(get_create_action_for_tag('전역 상태 의존 구조'), 'create_safe_global_calculation')
+        self.assertIs(_get_transform_function('create_safe_nested_input_structure'), input_transform)
+        self.assertIs(_get_transform_function('create_safe_global_calculation'), global_transform)
+        # CAPSTONE_BATCH27_LEGACY_COUNT_V1: allow later linked tags.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 92)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 10)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
+
+    def test_plan_requires_concept_and_metrics(self):
+        saved = {'input_call_count': 2, 'global_count': 1}
+        target = {'import_count': 1, 'attribute_count': 1, 'call_count': 1,
+                  'function_count': 1, 'assign_count': 1,
+                  'input_call_count': 0, 'global_count': 0}
+        actions = [a['action'] for a in plan(saved, target,
+                  ['사용자 입력 처리 구조', '전역 상태 의존 구조'])['actions']]
+        self.assertIn('create_safe_nested_input_structure', actions)
+        self.assertIn('create_safe_global_calculation', actions)
+        self.assertEqual(actions.count('create_safe_nested_input_structure'), 1)
+        self.assertEqual(actions.count('create_safe_global_calculation'), 1)
+
+    def test_no_saved_concept_is_not_enough(self):
+        saved = {'input_call_count': 1, 'global_count': 1}
+        target = {'import_count': 1, 'attribute_count': 1, 'call_count': 1,
+                  'function_count': 1, 'assign_count': 1}
+        actions = [a['action'] for a in plan(saved, target)['actions']]
+        self.assertNotIn('create_safe_nested_input_structure', actions)
+        self.assertNotIn('create_safe_global_calculation', actions)
+
+    def test_no_saved_metric_is_not_enough(self):
+        target = {'import_count': 1, 'attribute_count': 1, 'call_count': 1,
+                  'function_count': 1, 'assign_count': 1}
+        actions = [a['action'] for a in plan({}, target,
+                  ['사용자 입력 처리 구조', '전역 상태 의존 구조'])['actions']]
+        self.assertNotIn('create_safe_nested_input_structure', actions)
+        self.assertNotIn('create_safe_global_calculation', actions)
+
+    def test_missing_tag_alone_is_not_enough(self):
+        missing = [{'tag': '사용자 입력 처리 구조'}, {'tag': '전역 상태 의존 구조'}]
+        actions = [a['action'] for a in plan({}, {}, missing=missing)['actions']]
+        self.assertNotIn('create_safe_nested_input_structure', actions)
+        self.assertNotIn('create_safe_global_calculation', actions)
+
+    def test_target_already_has_metric(self):
+        saved = {'input_call_count': 1, 'global_count': 1}
+        target = {'import_count': 1, 'attribute_count': 1, 'call_count': 1,
+                  'function_count': 1, 'assign_count': 1,
+                  'input_call_count': 1, 'global_count': 1}
+        actions = [a['action'] for a in plan(saved, target,
+                  ['사용자 입력 처리 구조', '전역 상태 의존 구조'])['actions']]
+        self.assertNotIn('create_safe_nested_input_structure', actions)
+        self.assertNotIn('create_safe_global_calculation', actions)
+
+    def test_previous_unmapped_tags_stay_compare_only(self):
+        self.assertIn('기본 매개변수', COMPARE_ONLY_TAGS)
+        self.assertIn('비동기 함수 정의', COMPARE_ONLY_TAGS)
+        self.assertNotIn('파일 입출력 구조', COMPARE_ONLY_TAGS)
+
+
+if __name__ == '__main__':
+    unittest.main()

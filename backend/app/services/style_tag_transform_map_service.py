@@ -7,6 +7,13 @@ matching and execution validation may still leave the code unchanged.
 from app.services.tag_rule_service import CONCEPT_TAG_RULES, SYNTAX_TAG_RULES
 
 CREATE_ACTION_BY_TAG: dict[str, str] = {
+    # CAPSTONE_BATCH27_REGISTRY_V1: guarded read-only file I/O and procedural style.
+    "open 사용": "create_safe_module_io_open",
+    "파일 입출력 구조": "create_safe_file_io_with",
+    "절차형 코드 스타일": "create_safe_literal_procedural",
+    # CAPSTONE_BATCH26_REGISTRY_V1: concept-driven nested input/global styles.
+    "사용자 입력 처리 구조": "create_safe_nested_input_structure",
+    "전역 상태 의존 구조": "create_safe_global_calculation",
     # CAPSTONE_BATCH24_REGISTRY_V1: constrained builtin I/O styles.
     "import문": "create_safe_explicit_builtins_import",
     "입출력 중심 코드": "create_safe_literal_print_merge",

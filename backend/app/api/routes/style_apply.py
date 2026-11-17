@@ -5,6 +5,8 @@ from app.schemas.style_apply import (
     StyleApplyRequest,
     StyleApplyResponse,
 )
+# CAPSTONE_BATCH25_ROUTE_GUARD_IMPORT_V1
+from app.services.function_input_type_guard_service import validate_function_test_case
 from app.services.style_apply_service import apply_coding_style
 from app.services.style_format_apply_service import apply_saved_formatting_style
 from app.services.execution_validation_service import verify_execution_equivalence
@@ -63,6 +65,11 @@ def apply_style_api(request: StyleApplyRequest):
         strict_runtime_validation = getattr(request, "strict_runtime_validation", False)
         # CAPSTONE_BATCH17_STDIN_V1: legacy mocked requests may not have a stdin field.
         stdin_input = getattr(request, "stdin", None)
+        # CAPSTONE_BATCH25_ROUTE_INPUT_PRECHECK_V1: show useful errors
+        # instead of treating matching exceptions as successful verification.
+        if function_cases is not None:
+            for case in function_cases:
+                validate_function_test_case(request.code, case, stdin=stdin_input)
 
         (
             transformed_code,

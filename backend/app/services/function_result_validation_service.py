@@ -11,6 +11,9 @@ import keyword
 import math
 import uuid
 
+# CAPSTONE_BATCH25_FUNCTION_TYPE_GUARD_IMPORT_V1
+from app.services.function_input_type_guard_service import validate_function_test_case
+
 from app.services.execution_validation_service import (
     execute_python_code, valid_stdin_input,
 )
@@ -426,9 +429,13 @@ def verify_function_results(
 
     if stdin is not None and not valid_stdin_input(stdin):
         raise ValueError("Shared stdin exceeds limits or is not text.")
-    # Validate all test inputs before executing any supplied code.
+    # CAPSTONE_BATCH25_FUNCTION_TYPE_GUARD_V1: reject known mismatches
+    # before any user code is executed in the test runner.
     for case in cases:
         _validated_case(case)
+        validate_function_test_case(original_code, case, stdin=stdin)
+        if transformed_code != original_code:
+            validate_function_test_case(transformed_code, case, stdin=stdin)
 
     results = [
         _compare_case(

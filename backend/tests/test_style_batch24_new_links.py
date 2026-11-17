@@ -151,8 +151,10 @@ class Batch24Safety(unittest.TestCase):
         self.assertEqual(get_create_action_for_tag('입출력 중심 코드'), 'create_safe_literal_print_merge')
         self.assertIs(_get_transform_function('create_safe_explicit_builtins_import'), import_transform)
         self.assertIs(_get_transform_function('create_safe_literal_print_merge'), io_transform)
-        self.assertEqual(len(CREATE_ACTION_BY_TAG), 90)
-        self.assertEqual(len(COMPARE_ONLY_TAGS), 12)
+        # CAPSTONE_BATCH26_LEGACY_MINIMUM_V1: later tags extend the registry.
+        self.assertGreaterEqual(len(CREATE_ACTION_BY_TAG), 90)
+        self.assertLessEqual(len(COMPARE_ONLY_TAGS), 12)
+        self.assertEqual(len(CREATE_ACTION_BY_TAG) + len(COMPARE_ONLY_TAGS), 102)
 
     def test_style_metric_gates(self):
         saved = {'import_count': 1, 'print_call_count': 1,
@@ -186,7 +188,8 @@ class Batch24Safety(unittest.TestCase):
         self.assertNotIn('create_safe_literal_print_merge', acts)
 
     def test_unsafe_tags_remain_compare_only(self):
-        for tag in ('await 사용', '파일 입출력 구조', '기본 매개변수'):
+        # CAPSTONE_BATCH27_LEGACY_STATUS_V1: file I/O is now narrowly linked.
+        for tag in ('await 사용', '기본 매개변수'):
             self.assertNotIn(tag, CREATE_ACTION_BY_TAG)
             self.assertIn(tag, COMPARE_ONLY_TAGS)
 
