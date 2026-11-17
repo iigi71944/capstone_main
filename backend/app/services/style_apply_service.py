@@ -8,6 +8,8 @@ from app.services.style_diff_service import (
 )
 from app.services.style_transform_plan_service import build_transform_plan
 from app.services.style_action_diagnostic_service import build_transform_diagnostics
+from app.services.style_action_preflight_service import screen_action_candidate
+# CAPSTONE_BATCH36_3_PREFLIGHT_IMPORT_V1
 # CAPSTONE_BATCH14_CONFLICT_IMPORT_V1
 from app.services.style_action_conflict_service import mark_reverted_actions
 # CAPSTONE_BATCH15_PARTIAL_CONFLICT_IMPORT_V1
@@ -420,6 +422,7 @@ def _apply_style_action(
     action_item: dict,
     applied_rules: list[str],
     warnings: list[str],
+    preflight_enabled: bool = False,
 ) -> tuple[str, dict]:
     action = action_item.get("action", "")
     tag_name = action_item.get("tag", "")
@@ -444,6 +447,16 @@ def _apply_style_action(
             "현재 연결되어 있지 않아 자동 변환하지 않았습니다.",
         )
         return code, result
+
+    # CAPSTONE_BATCH36_3_PREFLIGHT_V1: inspect current, sequentially
+    # transformed code, never original input, before calling narrow transform.
+    if preflight_enabled:
+        preflight = screen_action_candidate(action, code)
+        if preflight is not None:
+            result["status"] = "skipped_shape_preflight"
+            result["preflight_reason_code"] = preflight["reason_code"]
+            result["preflight_reason"] = preflight["reason"]
+            return code, result
 
     before = code
     try:
@@ -524,6 +537,9 @@ def apply_coding_style(
             action_item=action_item,
             applied_rules=applied_rules,
             warnings=warnings,
+            preflight_enabled=(isinstance(metric_info, dict)
+                               and metric_info.get("status") == "current_complete"
+                               and metric_info.get("stored_version") == 1),
         )
         action_results.append(action_result)
         action_snapshots.append(transformed_code)

@@ -190,6 +190,39 @@ def _change_call(stmt: ast.stmt, signature: list[str], direction: str) -> list[a
     return [updated]
 
 
+def _change_wrapped_print_call(tree: ast.Module, stmt: ast.stmt, index: int) -> list[ast.stmt] | None:
+    """CAPSTONE_BATCH36_3_NESTED_KEYWORD_V1: closed print(fn(literals)) form.
+
+    Changing evaluation order is dangerous with side-effectful arguments.
+    Only one direct print of a statically defined, stable local function with
+    primitive constant arguments is eligible; all existing safety checks and
+    comment-preserving edit routines remain in force.
+    """
+    if (len(tree.body) != 2 or index != 1 or not isinstance(tree.body[0], ast.FunctionDef)
+            or not isinstance(stmt, ast.Expr) or not isinstance(stmt.value, ast.Call)):
+        return None
+    outer = stmt.value
+    if (not isinstance(outer.func, ast.Name) or outer.func.id != 'print'
+            or _is_shadowed(tree, 'print') or len(outer.args) != 1 or outer.keywords):
+        return None
+    inner = outer.args[0]
+    if (not isinstance(inner, ast.Call) or not isinstance(inner.func, ast.Name)
+            or inner.keywords or not inner.args):
+        return None
+    if not all(isinstance(arg, ast.Constant) and type(arg.value) in
+               (int, float, bool, str, type(None)) for arg in inner.args):
+        return None
+    signature = _module_function(tree, inner.func.id, index)
+    if signature is None or len(inner.args) != len(signature):
+        return None
+    updated = copy.deepcopy(stmt)
+    nested = updated.value.args[0]
+    nested.keywords = [ast.keyword(arg=name, value=copy.deepcopy(value))
+                       for name, value in zip(signature, inner.args)]
+    nested.args = []
+    return [updated]
+
+
 def _convert_attribute(tree: ast.Module, stmt: ast.stmt, direction: str) -> list[ast.stmt] | None:
     if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
         expression = stmt.value
@@ -246,10 +279,18 @@ def _rewrite(code: str, direction: str) -> str:
             elif direction in ('to_keywords', 'to_positional'):
                 if isinstance(stmt, (ast.Assign, ast.Expr)):
                     call = stmt.value
-                    if isinstance(call, ast.Call) and isinstance(call.func, ast.Name):
+                    # CAPSTONE_BATCH36_3_SHADOWED_PRINT_GUARD_V1:
+                    # A user-defined print(x) is NOT the builtin print().
+                    # Keep the dedicated nested-print safety gate responsible
+                    # for print(fn(literals)); never rewrite outer print(...)
+                    # into print(x=...) when print is shadowed.
+                    if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                            and not (direction == 'to_keywords' and call.func.id == 'print')):
                         signature = _module_function(tree, call.func.id, i)
                         if signature is not None:
                             replacements = _change_call(stmt, signature, direction)
+                if replacements is None and direction == 'to_keywords':
+                    replacements = _change_wrapped_print_call(tree, stmt, i)
             elif direction in ('to_attribute', 'to_getattr'):
                 replacements = _convert_attribute(tree, stmt, direction)
             if replacements:

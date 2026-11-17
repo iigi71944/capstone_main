@@ -14,6 +14,7 @@ _STATUS = {
     "rolled_back": ("cancelled", "실행 검증 후 취소"),
     "cancelled_net_zero": ("cancelled", "후속 변환으로 최종 변경 취소"),
     "no_safe_pattern": ("skipped", "적용할 안전한 코드 패턴 없음"),
+    "skipped_shape_preflight": ("skipped", "필수 문법 형태가 없어 변환기 실행 생략"),  # CAPSTONE_BATCH36_3_OUTCOME_V1
     "transformer_missing": ("skipped", "연결된 변환기 없음"),
     "transformer_error": ("skipped", "변환기 실행 오류"),
     "invalid_result": ("skipped", "변환 후 문법 오류"),

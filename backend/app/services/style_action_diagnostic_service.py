@@ -39,6 +39,7 @@ _STAGE_REASON = {
 _STATUS_REASON = {
     "applied": ("applied", "변환 액션이 적용되었으며 최종 취소되지 않았습니다."),
     "no_safe_pattern": ("no_safe_pattern", "대상 코드에서 변환기의 안전 조건을 만족하는 패턴을 찾지 못했습니다."),
+    "skipped_shape_preflight": ("missing_required_ast_shape", "필수 AST 구조가 없어 변환기를 호출하지 않았습니다."),  # CAPSTONE_BATCH36_3_DIAG_V1
     "transformer_missing": ("transformer_missing", "해당 액션과 연결된 변환기가 없습니다."),
     "transformer_error": ("transformer_error", "변환기를 실행하는 중 예외가 발생했습니다."),
     "empty_result": ("empty_result", "변환기가 유효한 코드 문자열을 반환하지 않았습니다."),
@@ -109,6 +110,9 @@ def _attempt_result(raw: dict, verification: dict | None) -> dict:
         else:
             reason_code = "runtime_unverified"
             reason = "실행 결과의 동일성이 검증되지 않아 전체 변환을 취소했습니다."
+    if status == "skipped_shape_preflight":
+        reason_code = raw.get("preflight_reason_code") or reason_code
+        reason = raw.get("preflight_reason") or reason
     result = {
         "tag": tag, "action": action, "status": status,
         "reason_code": reason_code, "reason": reason,
