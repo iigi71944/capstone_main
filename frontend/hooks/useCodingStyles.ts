@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createCodingStyleId } from "../lib/codingStyleFactory";
+import {
+  DUPLICATE_STYLE_NAME_MESSAGE,
+  isDuplicateCodingStyleName,
+} from "../lib/codingStyleNameValidation";
 import type { CodingStyle, ConceptTag } from "../types/analysis";
 
 export interface AuthUser {
@@ -152,20 +156,26 @@ export function useCodingStyles() {
   };
 
   useEffect(() => {
-    const rawUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-    if (!rawUser) {
-      loadStylesByEmail(GUEST_EMAIL);
-      return;
-    }
+    // CAPSTONE_FRONTEND_LINT_EFFECT_SCHEDULE_V1: localStorage 복원은 effect 뒤의 작업으로 예약합니다.
+    // 언마운트 시 예약을 취소하므로 React 개발 모드의 effect 재실행도 안전합니다.
+    const timerId = window.setTimeout(() => {
+      const rawUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+      if (!rawUser) {
+        loadStylesByEmail(GUEST_EMAIL);
+        return;
+      }
 
-    try {
-      const parsedUser = JSON.parse(rawUser) as AuthUser;
-      setCurrentUser(parsedUser);
-      loadStylesByEmail(parsedUser.email);
-    } catch {
-      localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-      loadStylesByEmail(GUEST_EMAIL);
-    }
+      try {
+        const parsedUser = JSON.parse(rawUser) as AuthUser;
+        setCurrentUser(parsedUser);
+        loadStylesByEmail(parsedUser.email);
+      } catch {
+        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+        loadStylesByEmail(GUEST_EMAIL);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
   }, []);
 
   const saveStylesToStorage = (styles: SharedCodingStyle[]): boolean => {
@@ -182,8 +192,45 @@ export function useCodingStyles() {
     }
   };
 
+  // CAPSTONE_STYLE_NAME_DUPLICATE_SAVE_V1: 이름 중복은 저장 직전에 검사합니다.
   const saveCodingStyle = (style: SharedCodingStyle): boolean => {
-    const saved = saveStylesToStorage([style, ...savedStyles]);
+    // 기본 이름은 스타일 생성 시 이미 확정됩니다. 앞뒤 공백을 제거해 저장합니다.
+    const name = style.name.trim();
+    const storageKey = getStyleStorageKey(currentUser?.email || GUEST_EMAIL);
+    let currentStyles: SharedCodingStyle[] = [];
+
+    // 다른 탭에서 방금 저장한 이름도 차단하도록 저장소를 재조회합니다.
+    // 데이터가 손상되었다면 기존 목록을 빈 배열로 덮어쓰지 않습니다.
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw !== null) {
+        const parsed: unknown = JSON.parse(raw);
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every(
+            (item) =>
+              item &&
+              typeof item === "object" &&
+              typeof (item as { name?: unknown }).name === "string"
+          )
+        ) {
+          alert("저장된 코딩 스타일 정보를 읽을 수 없어 저장을 중단했습니다.");
+          return false;
+        }
+        currentStyles = parsed as SharedCodingStyle[];
+      }
+    } catch (error) {
+      console.error("코딩 스타일 목록 조회 오류:", error);
+      alert("저장된 코딩 스타일 정보를 읽을 수 없어 저장을 중단했습니다.");
+      return false;
+    }
+
+    if (isDuplicateCodingStyleName(name, currentStyles)) {
+      alert(DUPLICATE_STYLE_NAME_MESSAGE);
+      return false;
+    }
+
+    const saved = saveStylesToStorage([{ ...style, name }, ...currentStyles]);
     if (saved) alert("코딩 스타일이 저장되었습니다.");
     return saved;
   };

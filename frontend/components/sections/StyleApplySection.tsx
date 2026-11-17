@@ -76,20 +76,6 @@ const createFunctionDraft = (
 });
 
 
-function getStatusLabel(
-  status: VerificationStatus
-): string {
-  if (status === "equivalent") {
-    return "일치";
-  }
-
-  if (status === "different") {
-    return "불일치";
-  }
-
-  return "검증 불가";
-}
-
 function getStatusClass(
   status: VerificationStatus
 ): string {

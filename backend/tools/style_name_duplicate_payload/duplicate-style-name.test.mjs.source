@@ -1,0 +1,166 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const project = path.resolve(here, "..");
+
+function compileTypeScript(relative) {
+  const source = readFileSync(path.join(project, relative), "utf8");
+  return ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+}
+
+const policy = { exports: {} };
+runInNewContext(compileTypeScript("lib/codingStyleNameValidation.ts"), {
+  exports: policy.exports,
+  console,
+});
+
+const {
+  DUPLICATE_STYLE_NAME_MESSAGE,
+  isDuplicateCodingStyleName,
+} = policy.exports;
+
+function makeHook({ guestStyles = [], user = null, currentStyles = [], stateStyles = null, storageError = false } = {}) {
+  const items = new Map();
+  if (guestStyles.length) {
+    items.set("capstone_saved_coding_styles_guest", JSON.stringify(guestStyles));
+  }
+  if (currentStyles.length && user) {
+    items.set(`capstone_saved_coding_styles_${user.email}`, JSON.stringify(currentStyles));
+  }
+  const alerts = [];
+  let calls = 0;
+  const useState = (defaultValue) => {
+    const state = [stateStyles ?? guestStyles, user, "", "", "", null][calls++];
+    return [state === undefined ? defaultValue : state, () => {}];
+  };
+  const localStorage = {
+    getItem: (key) => {
+      if (storageError) throw new Error("storage unavailable");
+      return items.has(key) ? items.get(key) : null;
+    },
+    setItem: (key, value) => {
+      if (storageError) throw new Error("storage unavailable");
+      items.set(key, value);
+    },
+    removeItem: (key) => items.delete(key),
+  };
+  const hook = { exports: {} };
+  runInNewContext(compileTypeScript("hooks/useCodingStyles.ts"), {
+    exports: hook.exports,
+    require: (mod) => {
+      if (mod === "react") return { useState, useEffect: () => {} };
+      if (mod === "../lib/codingStyleFactory") {
+        return { createCodingStyleId: () => "generated-share-id" };
+      }
+      if (mod === "../lib/codingStyleNameValidation") return policy.exports;
+      throw new Error(`Unexpected import: ${mod}`);
+    },
+    console: { error: () => {} },
+    localStorage,
+    alert: (message) => alerts.push(message),
+  });
+  return { save: hook.exports.useCodingStyles().saveCodingStyle, items, alerts };
+}
+
+const sample = (name, id = "new") => ({
+  id,
+  name,
+  description: "",
+  syntax_tags: [],
+  concept_tags: [],
+  metrics: {},
+  created_at: "test",
+});
+
+const guestKey = "capstone_saved_coding_styles_guest";
+
+test("같은 이름을 저장하면 정확한 팝업을 표시하고 목록은 변경되지 않는다", () => {
+  const original = [sample("A", "old")];
+  const ctx = makeHook({ guestStyles: original });
+  const before = ctx.items.get(guestKey);
+  assert.equal(ctx.save(sample("A")), false);
+  assert.deepEqual(ctx.alerts, [DUPLICATE_STYLE_NAME_MESSAGE]);
+  assert.equal(ctx.items.get(guestKey), before);
+});
+
+test("이름 앞뒤 공백, 대소문자, 한글 유니코드 조합 차이도 중복으로 취급", () => {
+  const ctx = makeHook({ guestStyles: [sample("  Test  "), sample("가나다", "old2")] });
+  for (const name of ["test", "TEST", "  Test ", "가나다".normalize("NFD")]) {
+    assert.equal(ctx.save(sample(name)), false, name);
+  }
+  assert.equal(ctx.alerts.length, 4);
+  assert.equal(JSON.parse(ctx.items.get(guestKey)).length, 2);
+});
+
+test("다른 이름은 저장되며 기존 기록이 유지된다", () => {
+  const ctx = makeHook({ guestStyles: [sample("A", "old")] });
+  assert.equal(ctx.save(sample("B")), true);
+  const stored = JSON.parse(ctx.items.get(guestKey));
+  assert.deepEqual(stored.map((style) => style.name), ["B", "A"]);
+  assert.deepEqual(ctx.alerts, ["코딩 스타일이 저장되었습니다."]);
+});
+
+test("이름을 입력하지 않고 기본 생성된 이름도 중복을 막는다", () => {
+  const ctx = makeHook({ guestStyles: [sample("코딩 스타일 1")] });
+  assert.equal(ctx.save(sample("코딩 스타일 1")), false);
+  assert.equal(ctx.alerts.at(-1), DUPLICATE_STYLE_NAME_MESSAGE);
+});
+
+test("로그인 계정과 게스트 계정의 이름은 독립적으로 관리된다", () => {
+  const ctx = makeHook({
+    guestStyles: [sample("A")],
+    user: { email: "test001@gmail.com" },
+  });
+  assert.equal(ctx.save(sample("A")), true);
+  assert.equal(JSON.parse(ctx.items.get(guestKey)).length, 1);
+  assert.equal(JSON.parse(ctx.items.get("capstone_saved_coding_styles_test001@gmail.com")).length, 1);
+});
+
+test("로그인 계정 내 공유받은 스타일 이름도 중복을 막는다", () => {
+  const shared = { ...sample("Shared", "old"), is_shared: true };
+  const ctx = makeHook({
+    guestStyles: [],
+    user: { email: "test001@gmail.com" },
+    currentStyles: [shared],
+  });
+  assert.equal(ctx.save(sample("shared")), false);
+  assert.equal(ctx.alerts.at(-1), DUPLICATE_STYLE_NAME_MESSAGE);
+});
+
+test("다른 탭에서 저장되어 React 상태에 없는 최신 이름도 막는다", () => {
+  const ctx = makeHook({ guestStyles: [sample("latest", "remote")], stateStyles: [] });
+  assert.equal(ctx.save(sample("LATEST")), false);
+  assert.equal(ctx.alerts.at(-1), DUPLICATE_STYLE_NAME_MESSAGE);
+});
+
+test("잘못된 저장 데이터가 존재하면 기존 기록을 덮어쓰지 않는다", () => {
+  const ctx = makeHook({ guestStyles: [sample("old")] });
+  ctx.items.set(guestKey, "{ invalid json }");
+  assert.equal(ctx.save(sample("new")), false);
+  assert.equal(ctx.items.get(guestKey), "{ invalid json }");
+  assert.equal(ctx.alerts.at(-1), "저장된 코딩 스타일 정보를 읽을 수 없어 저장을 중단했습니다.");
+});
+
+test("브라우저 저장소를 읽을 수 없을 때 저장을 중단한다", () => {
+  const ctx = makeHook({ storageError: true });
+  assert.equal(ctx.save(sample("new")), false);
+  assert.equal(ctx.alerts.at(-1), "저장된 코딩 스타일 정보를 읽을 수 없어 저장을 중단했습니다.");
+});
+
+test("연속으로 같은 이름을 저장해도 첫 저장만 성공한다", () => {
+  const ctx = makeHook();
+  assert.equal(ctx.save(sample("fresh")), true);
+  assert.equal(ctx.save(sample("fresh", "second")), false);
+  assert.equal(JSON.parse(ctx.items.get(guestKey)).length, 1);
+});
