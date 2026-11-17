@@ -2,6 +2,11 @@
 
 from app.services.style_tag_transform_map_service import get_create_action_for_tag
 from app.services.style_tag_action_policy_service import finalize_tag_action_policies
+# CAPSTONE_BATCH35_5_METRIC_REFINEMENT_V1: versioned metric-based action refinements.
+from app.services.style_metric_refinement_service import (
+    add_dominant_default_actions,
+    refine_closed_pattern_actions,
+)
 from app.services.style_action_diagnostic_service import trace_plan_filter
 # CAPSTONE_BATCH28_PLAN_IMPORT_V1
 
@@ -1046,6 +1051,10 @@ def build_transform_plan(diff: dict) -> dict:
             ),
         })
 
+    # CAPSTONE_BATCH35_5_METRIC_REFINEMENT_V1: add strongly preferred default forms.
+    # Legacy and incomplete metric snapshots keep their old behavior.
+    actions = add_dominant_default_actions(diff, actions)
+
     # CAPSTONE_BATCH35_3_REASON_TRACE_V1: observe existing resolver stages.
     # Resolver order, action order, and conflict behavior remain unchanged.
     selected = finalize_tag_action_policies(actions)
@@ -1061,6 +1070,10 @@ def build_transform_plan(diff: dict) -> dict:
         selected = resolved
     final_actions = finalize_tag_action_policies(selected)
     omitted_actions.extend(trace_plan_filter(selected, final_actions, "policy_final"))
+    # CAPSTONE_BATCH35_5_METRIC_REFINEMENT_V1: check 7 closed-pattern families against observed
+    # target shape before dispatching; log refusals as omitted actions.
+    final_actions, metric_omissions = refine_closed_pattern_actions(diff, final_actions)
+    omitted_actions.extend(metric_omissions)
     compare_tags = sorted(set(compare_only))
     compare_details = []
     for tag in compare_tags:
