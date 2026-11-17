@@ -8,6 +8,9 @@ from app.services.style_diff_service import (
 )
 from app.services.style_transform_plan_service import build_transform_plan
 from app.services.style_action_diagnostic_service import build_transform_diagnostics
+from app.services.style_alignment_quality_service import (
+    build_style_alignment_quality,
+)
 from app.services.style_action_preflight_service import screen_action_candidate
 # CAPSTONE_BATCH36_3_PREFLIGHT_IMPORT_V1
 # CAPSTONE_BATCH14_CONFLICT_IMPORT_V1
@@ -727,6 +730,14 @@ def apply_coding_style(
     # CAPSTONE_BATCH35_3_FINAL_DIAGNOSTICS_V1: additive detail in final_diff.
     final_diff["transform_diagnostics"] = build_transform_diagnostics(
         transform_plan, action_results, execution_verification
+    )
+    # CAPSTONE_BATCH36_5_ALIGNMENT_QUALITY_V1: independent tag-gap and default-form evidence.
+    # Does not change any transforms or the six-value return contract.
+    final_diff["style_alignment_quality"] = build_style_alignment_quality(
+        initial_diff=initial_diff,
+        final_diff=final_diff,
+        execution_verification=execution_verification,
+        code_changed=_is_changed(code, transformed_code),
     )
     compare_only_tags = transform_plan.get("compare_only", [])
     if compare_only_tags:
