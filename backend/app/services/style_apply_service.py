@@ -59,6 +59,10 @@ from app.services.improvement.safe_list_comprehension_service import (
     transform_for_append_to_list_comprehension,
     transform_list_comprehension_to_for_append,
 )
+# CAPSTONE_BATCH36_4_PURE_COMPOSITE_V1
+from app.services.improvement.safe_composite_list_service import (
+    transform_safe_composite_list_comprehension,
+)
 from app.services.improvement.safe_dict_comprehension_service import (
     transform_for_assignment_to_dict_comprehension,
     transform_dict_comprehension_to_for_assignment,
@@ -461,6 +465,12 @@ def _apply_style_action(
     before = code
     try:
         after = transform_func(code)
+        # CAPSTONE_BATCH36_4_CANONICAL_DISPATCH_COMPAT_V1
+        # Keep the original dispatcher function identity for older callers.
+        # Only use the Batch36-4 closed composite pattern as a fallback when
+        # the existing transformer could not change the current source.
+        if action == "create_safe_comprehension_collection" and after == before:
+            after = transform_safe_composite_list_comprehension(before)
     except Exception as error:
         result["status"] = "transformer_error"
         _add_unique(

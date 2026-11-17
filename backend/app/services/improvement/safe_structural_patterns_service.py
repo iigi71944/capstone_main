@@ -215,6 +215,16 @@ def _change_wrapped_print_call(tree: ast.Module, stmt: ast.stmt, index: int) -> 
     signature = _module_function(tree, inner.func.id, index)
     if signature is None or len(inner.args) != len(signature):
         return None
+    # CAPSTONE_BATCH36_4_UNUSED_PARAMETER_GUARD_V1: avoid keyword-only surface edits when the helper
+    # ignores its declared parameters (R08); preserve the previous
+    # function/keyword safety checks and the R43 valid transformation.
+    helper = tree.body[0]
+    if not all(
+        any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            and node.id == name for node in ast.walk(helper))
+        for name in signature
+    ):
+        return None
     updated = copy.deepcopy(stmt)
     nested = updated.value.args[0]
     nested.keywords = [ast.keyword(arg=name, value=copy.deepcopy(value))
