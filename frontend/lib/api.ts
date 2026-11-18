@@ -78,7 +78,8 @@ export async function applyCodingStyle(
   style: CodingStyle,
   functionCases?: FunctionTestCase[] | null,
   strictRuntimeValidation: boolean = false,
-  stdin?: string
+  stdin?: string,
+  stdinCases?: string[]
 ): Promise<StyleApplyResponse> {
   const requestBody: StyleApplyRequest = {
     language: "python",
@@ -99,6 +100,10 @@ export async function applyCodingStyle(
   // CAPSTONE_BATCH17_STDIN_V1: omit shared stdin for legacy requests.
   if (stdin !== undefined) {
     requestBody.stdin = stdin;
+  }
+  // Optional batch stdin: each row is checked against the same code pair.
+  if (stdinCases !== undefined && stdinCases.length > 0) {
+    requestBody.stdin_cases = stdinCases;
   }
 
   const response = await fetch(

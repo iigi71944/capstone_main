@@ -521,6 +521,7 @@ def apply_coding_style(
     function_cases: list[dict] | None = None,
     strict_runtime_validation: bool = False,
     stdin: str | None = None,
+    stdin_cases: list[str] | None = None,
 ):
     """Keep the six-item API return contract and rollback semantics.
 
@@ -619,7 +620,8 @@ def apply_coding_style(
     execution_verification = None
     transformation_cancelled_by_runtime = False
 
-    if _is_changed(code, transformed_code) or function_cases is not None:
+    if (_is_changed(code, transformed_code) or function_cases is not None
+            or stdin_cases is not None):
         # Preserve the public six-item return contract.  Never trust an
         # exception, a malformed response, or a contradictory verdict.
         verifier_malformed = False
@@ -629,6 +631,7 @@ def apply_coding_style(
                 transformed_code=transformed_code,
                 function_cases=function_cases,
                 **({"stdin": stdin} if stdin is not None else {}),
+                **({"stdin_cases": stdin_cases} if stdin_cases is not None else {}),
             )
         except Exception as error:
             verifier_malformed = True

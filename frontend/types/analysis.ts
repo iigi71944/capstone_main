@@ -112,6 +112,16 @@ export type FunctionVerification = {
 // Combined execution verification
 // ============================================================
 
+export type StdinCaseVerification = {
+  case_number: number;
+  stdin: string;
+  status: VerificationStatus;
+  equivalent: boolean | null;
+  original: ExecutionResult;
+  transformed: ExecutionResult;
+  message: string;
+};
+
 export type ExecutionVerification = {
   source: string;
   status: VerificationStatus;
@@ -125,6 +135,7 @@ export type ExecutionVerification = {
   // 기존 API 요청에서는 null일 수 있습니다.
   // 함수 테스트를 요청하면 검증 결과가 전달됩니다.
   function_verification?: FunctionVerification | null;
+  stdin_case_results?: StdinCaseVerification[] | null;
 };
 
 // ============================================================
@@ -159,6 +170,7 @@ export type StyleApplyRequest = {
   strict_runtime_validation?: boolean;
   // CAPSTONE_BATCH17_STDIN_V1: optional shared input text.
   stdin?: string | null;
+  stdin_cases?: string[] | null;
 };
 
 // ============================================================

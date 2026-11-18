@@ -478,6 +478,7 @@ def verify_execution_equivalence(
     transformed_code: str,
     function_cases: list[dict] | None = None,
     stdin: Optional[str] = None,
+    stdin_cases: list[str] | None = None,
 ) -> dict:
     """
     변환 전후 코드의 실제 실행 결과를 비교합니다.
@@ -508,10 +509,61 @@ def verify_execution_equivalence(
     모든 가능한 입력에 대해 동등성을 보장하지 않습니다.
     """
 
+    # CAPSTONE_BATCH37_MULTI_STDIN_V1: compare every submitted input against
+    # exactly the same before/after code. First result remains the legacy slot.
+    if stdin_cases is not None:
+        if (not isinstance(stdin_cases, list) or not 1 <= len(stdin_cases) <= 8
+                or any(not valid_stdin_input(value) for value in stdin_cases)):
+            raise ValueError("stdin_cases must contain 1 to 8 valid stdin strings")
+        if stdin is not None and stdin != stdin_cases[0]:
+            raise ValueError("stdin must equal the first stdin_cases entry")
+        effective_stdin = stdin_cases[0]
+    else:
+        effective_stdin = stdin
+
     result = _verify_observed_execution(
         original_code, transformed_code,
-        **({"stdin": stdin} if stdin is not None else {}),
+        **({"stdin": effective_stdin} if effective_stdin is not None else {}),
     )
+
+    if stdin_cases is not None:
+        case_rows = []
+        for index, case_stdin in enumerate(stdin_cases):
+            checked = (result if index == 0 else _verify_observed_execution(
+                original_code, transformed_code, stdin=case_stdin,
+            ))
+            case_rows.append({
+                "case_number": index + 1,
+                "stdin": case_stdin,
+                "status": checked["status"],
+                "equivalent": checked["equivalent"],
+                "original": checked["original"],
+                "transformed": checked["transformed"],
+                "message": checked["message"],
+            })
+        result["stdin_case_results"] = case_rows
+        outcomes = [row["status"] for row in case_rows]
+        if "different" in outcomes:
+            result["status"] = "different"
+            result["equivalent"] = False
+            result["message"] = (
+                f"{len(case_rows)}개 입력 중 일부에서 변환 전후 실행 결과 차이가 발견되었습니다. "
+                "전체 변환은 안전 정책에 따라 취소될 수 있습니다."
+            )
+        elif "not_verified" in outcomes:
+            result["status"] = "not_verified"
+            result["equivalent"] = None
+            result["message"] = (
+                f"{len(case_rows)}개 입력 중 검증하지 못한 항목이 있어 "
+                "실행 동등성을 확정하지 않았습니다."
+            )
+        else:
+            result["status"] = "equivalent"
+            result["equivalent"] = True
+            result["message"] = (
+                f"{len(case_rows)}개 입력에서 종료 코드·표준 출력·오류가 일치했습니다. "
+                "검사하지 않은 입력과 내부 상태의 동일성까지 보장하지는 않습니다."
+            )
 
     # 기존 스타일 적용 서비스는 function_cases를 전달하지
     # 않으므로 이전과 동일한 반환 구조를 사용합니다.
@@ -519,6 +571,12 @@ def verify_execution_equivalence(
         return result
 
     result["function_verification"] = None
+
+    # Batch inputs are mandatory checks, not optional examples. A differing or
+    # unverified stdin case must not be promoted to equivalent by function tests.
+    if stdin_cases is not None and result["status"] != "equivalent":
+        result["message"] += " 입력별 검증이 완료되지 않아 함수 테스트는 생략했습니다."
+        return result
 
     # 이미 차이가 확인되었다면 추가 검증이 필요하지 않습니다.
     if result["status"] == "different":

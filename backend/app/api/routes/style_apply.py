@@ -65,6 +65,8 @@ def apply_style_api(request: StyleApplyRequest):
         strict_runtime_validation = getattr(request, "strict_runtime_validation", False)
         # CAPSTONE_BATCH17_STDIN_V1: legacy mocked requests may not have a stdin field.
         stdin_input = getattr(request, "stdin", None)
+        # CAPSTONE_BATCH37_MULTI_STDIN_V1: optional, for old request stubs.
+        stdin_cases = getattr(request, "stdin_cases", None)
         # CAPSTONE_BATCH25_ROUTE_INPUT_PRECHECK_V1: show useful errors
         # instead of treating matching exceptions as successful verification.
         if function_cases is not None:
@@ -84,6 +86,7 @@ def apply_style_api(request: StyleApplyRequest):
             function_cases=function_cases,
             strict_runtime_validation=strict_runtime_validation,
             **({"stdin": stdin_input} if stdin_input is not None else {}),
+            **({"stdin_cases": stdin_cases} if stdin_cases is not None else {}),
         )
 
         # CAPSTONE_SAVED_FORMAT_APPLY_V1: 기존 문법/개념 변환과 실행 검증이 끝난 뒤 서식을 적용합니다.
@@ -140,6 +143,7 @@ def apply_style_api(request: StyleApplyRequest):
                     transformed_code=transformed_code,
                     function_cases=function_cases,
                     **({"stdin": stdin_input} if stdin_input is not None else {}),
+                    **({"stdin_cases": stdin_cases} if stdin_cases is not None else {}),
                 )
             except Exception as error:
                 final_check = None
@@ -229,6 +233,7 @@ def apply_style_api(request: StyleApplyRequest):
                     transformed_code=transformed_code,
                     function_cases=function_cases,
                     **({"stdin": stdin_input} if stdin_input is not None else {}),
+                    **({"stdin_cases": stdin_cases} if stdin_cases is not None else {}),
                 )
             except Exception as cleanup_error:
                 cleanup_check = None

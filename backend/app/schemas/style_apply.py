@@ -87,6 +87,8 @@ class StyleApplyRequest(BaseModel):
     strict_runtime_validation: bool = False
     # CAPSTONE_BATCH17_STDIN_V1: shared stdin for base execution and function cases.
     stdin: Optional[str] = Field(default=None, max_length=8192)
+    # CAPSTONE_BATCH37_MULTI_STDIN_V1: up to 8 independently checked stdin inputs.
+    stdin_cases: Optional[List[str]] = Field(default=None, min_length=1, max_length=8)
 
 
 # ============================================================
@@ -187,6 +189,16 @@ class FunctionVerification(BaseModel):
 # Combined execution verification
 # ============================================================
 
+class StdinCaseVerification(BaseModel):
+    case_number: int
+    stdin: str
+    status: str
+    equivalent: Optional[bool] = None
+    original: ExecutionResult
+    transformed: ExecutionResult
+    message: str
+
+
 class ExecutionVerification(BaseModel):
     """
     기존 실행 결과 검증과 함수 반환값 검증을 함께 표현합니다.
@@ -212,6 +224,8 @@ class ExecutionVerification(BaseModel):
     message: str
 
     function_verification: Optional[FunctionVerification] = None
+    # Optional additive response field. Existing clients can ignore it.
+    stdin_case_results: Optional[List[StdinCaseVerification]] = None
 
 
 # ============================================================

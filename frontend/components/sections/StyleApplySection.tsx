@@ -43,7 +43,8 @@ interface StyleApplySectionProps {
   handleApplyStyle: (
     functionCases?: FunctionTestCase[] | null,
     legacyVerificationOption?: boolean,
-    stdin?: string
+    stdin?: string,
+    stdinCases?: string[]
   ) => void | Promise<void>;
   styleApplyLoading: boolean;
   styleApplyResult: StyleApplyResult | null;
@@ -283,7 +284,7 @@ export default function StyleApplySection({
     }
 
     setFunctionInputError("");
-    void handleApplyStyle(selected.functionCases, false, selected.stdin);
+    void handleApplyStyle(selected.functionCases, false, selected.stdin, selected.stdinCases);
   };
 
   const missingSyntaxNames = new Set(
@@ -314,6 +315,8 @@ export default function StyleApplySection({
 
   const functionVerification =
     executionVerification?.function_verification;
+  // CAPSTONE_BATCH37_MULTI_STDIN_V1: one real result pair per submitted stdin.
+  const stdinCaseResults = executionVerification?.stdin_case_results ?? [];
 
   const editedAfterVerification =
     styleApplyResult !== null &&
@@ -771,7 +774,7 @@ export default function StyleApplySection({
                             input()은 문자열을 반환하며, int(input())는 정수로,
                             float(input())는 실수로 변환 가능한 값을 입력해야 합니다.
                             대괄호 없이 입력 순서대로 한 줄에 한 값씩 작성해주세요.
-                            여러 테스트 중 첫 번째로 작성한 stdin을 기본 실행 비교에도 사용합니다.
+                            입력한 각 stdin을 독립적으로 실행 비교하며, 결과는 테스트 개수만큼 표시됩니다.
                             함수별 입력은 해당 함수 테스트에서 각각 사용됩니다.
                           </p>
                         </div>
@@ -940,12 +943,27 @@ export default function StyleApplySection({
                   </div>
 
                   <div className="min-h-[110px] px-4 py-4">
-                    <ExecutionOutput
-                      result={
-                        executionVerification?.original
-                      }
-                      emptyMessage="변환 전 코드의 실행 결과를 확인할 수 없습니다."
-                    />
+                    {stdinCaseResults.length > 0 ? (
+                      <div className="space-y-4">
+                        {stdinCaseResults.map((test) => (
+                          <div key={test.case_number} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <p className="mb-1 text-xs font-semibold text-slate-700">
+                              입력 테스트 {test.case_number} / {stdinCaseResults.length} · {test.status === "equivalent" ? "일치" : test.status === "different" ? "불일치" : "검증 불가"}
+                            </p>
+                            <pre className="mb-3 whitespace-pre-wrap break-words font-mono text-xs text-slate-500">{test.stdin}</pre>
+                            <ExecutionOutput
+                              result={test.original}
+                              emptyMessage="테스트 실행 결과를 확인할 수 없습니다."
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ExecutionOutput
+                        result={executionVerification?.original}
+                        emptyMessage="변환 전 코드의 실행 결과를 확인할 수 없습니다."
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -990,12 +1008,27 @@ export default function StyleApplySection({
                   </div>
 
                   <div className="min-h-[110px] px-4 py-4">
-                    <ExecutionOutput
-                      result={
-                        executionVerification?.transformed
-                      }
-                      emptyMessage="스타일 적용 후 코드의 실행 결과를 확인할 수 없습니다."
-                    />
+                    {stdinCaseResults.length > 0 ? (
+                      <div className="space-y-4">
+                        {stdinCaseResults.map((test) => (
+                          <div key={test.case_number} className="rounded-lg border border-slate-200 bg-white p-3">
+                            <p className="mb-1 text-xs font-semibold text-slate-700">
+                              입력 테스트 {test.case_number} / {stdinCaseResults.length} · {test.status === "equivalent" ? "일치" : test.status === "different" ? "불일치" : "검증 불가"}
+                            </p>
+                            <pre className="mb-3 whitespace-pre-wrap break-words font-mono text-xs text-slate-500">{test.stdin}</pre>
+                            <ExecutionOutput
+                              result={test.transformed}
+                              emptyMessage="테스트 실행 결과를 확인할 수 없습니다."
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <ExecutionOutput
+                        result={executionVerification?.transformed}
+                        emptyMessage="스타일 적용 후 코드의 실행 결과를 확인할 수 없습니다."
+                      />
+                    )}
                   </div>
                 </div>
 

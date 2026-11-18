@@ -14,7 +14,7 @@ export interface VerificationInputDraft {
 }
 
 export type VerificationInputSelection =
-  | { ok: true; functionCases: FunctionTestCase[] | undefined; stdin: string | undefined }
+  | { ok: true; functionCases: FunctionTestCase[] | undefined; stdin: string | undefined; stdinCases: string[] }
   | { ok: false; error: string };
 
 const fail = (error: string): VerificationInputSelection => ({ ok: false, error });
@@ -22,7 +22,9 @@ const fail = (error: string): VerificationInputSelection => ({ ok: false, error 
 export function parseVerificationInputs(
   drafts: readonly VerificationInputDraft[]
 ): VerificationInputSelection {
+  if (drafts.length > 8) return fail("입력 테스트는 최대 8개까지 생성할 수 있습니다.");
   const functionCases: FunctionTestCase[] = [];
+  const stdinCases: string[] = [];
   let stdin: string | undefined;
 
   for (const [index, draft] of drafts.entries()) {
@@ -34,7 +36,10 @@ export function parseVerificationInputs(
       return fail(`${number}번 테스트의 사용자 입력값(stdin) 제한을 초과했습니다.`);
     }
     // Do not trim stdin: spaces and line breaks can be significant to input().
-    if (stdin === undefined && rawStdin !== "") stdin = rawStdin;
+    if (rawStdin !== "") {
+      stdinCases.push(rawStdin);
+      if (stdin === undefined) stdin = rawStdin;
+    }
 
     if (!functionName) {
       const untouchedArgs = draft.argsText.trim() === "[]";
@@ -82,5 +87,6 @@ export function parseVerificationInputs(
     ok: true,
     functionCases: functionCases.length > 0 ? functionCases : undefined,
     stdin,
+    stdinCases,
   };
 }

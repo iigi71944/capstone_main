@@ -56,7 +56,8 @@ export function useStyleApplication(savedStyles: SharedCodingStyle[]) {
   const handleApplyStyle = async (
     functionCases?: FunctionTestCase[] | null,
     strictRuntimeValidation: boolean = false,
-    stdin?: string
+    stdin?: string,
+    stdinCases?: string[]
   ) => {
     if (!selectedStyle) {
       alert("적용할 코딩 스타일을 선택해주세요.");
@@ -74,7 +75,8 @@ export function useStyleApplication(savedStyles: SharedCodingStyle[]) {
         selectedStyle,
         functionCases,
         strictRuntimeValidation,
-        stdin
+        stdin,
+        stdinCases
       );
 
       if (!applyResponse.success) {
